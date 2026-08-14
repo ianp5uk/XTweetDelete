@@ -52,7 +52,7 @@ You 'may' get anti-virus warnings, usually not.
 
 It should be setup as any other Windows user app. There is a small server/proxy running and will show up on the system tray. This is needed due to X.com API and CORS protections. The app runs in the browser talking to the server/proxy.
 
-DOWNLOAD for Windows
+[DOWNLOAD for Windows   ]()
 
 ### Debian / Ubuntu
 It has only been tested on Ubuntu 24.04 but should run on other Debian architecture Linux. On this version it is dependent on the presence of Python 3.8 or later. It should pull it in if not present.
