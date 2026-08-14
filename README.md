@@ -1,9 +1,13 @@
 # TweetDelete / XTweetDelete
 
 *I call the app TweetDelete but there is another web based service called https://tweetdelete.net/ that has registered the name on X. Hence you may see XTweetDelete used for this desktop app in places to avoid namespace conflicts, e.g., X’s developer console and authorisation process.*
+
+
 <p align="center">
   <img src="./TweetDelete.png" alt="Screenshot of the application" width="700">
 </p>
+
+
 
 ## What does TweetDelete do?
 TweetDelete will delete your posts, replies, likes & reposts from X in bulk. For a small number of Tweets, it will do this without manual assistance but X has limits including rate limiting. If you have many thousands of tweets it will delete as many as it can up to the search limit that X allows. It will then stop and ask you to download an archive file of the tweets from X and provide it with that to find the others and delete them. This is a limitation imposed by X, it may change with time, at the time of writing the limit was 3,200 before an archive is required manually.
