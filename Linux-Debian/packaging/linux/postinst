@@ -1,0 +1,29 @@
+#!/bin/sh
+set -e
+
+# Reload so systemd picks up the newly-installed unit file before we try to
+# enable it.
+systemctl daemon-reload 2>/dev/null || true
+
+# --global (not --user, and not a specific UID) enables the unit for every
+# user on the machine going forward - this is the correct mechanism for a
+# system package installing a per-user unit, since apt install runs as
+# root/via sudo and has no single "the user" to target on a possibly
+# multi-user machine. It takes effect the next time each user logs in.
+systemctl --global enable tweetdelete.service 2>/dev/null || true
+
+# Best-effort: also start it immediately for whichever user actually ran
+# `sudo apt install`, so it's usable right away without requiring a
+# logout/login first. Failure here (e.g. no active graphical session, or
+# run in a minimal/headless/CI environment) is expected and harmless - the
+# --global enable above already guarantees it starts on the next login
+# regardless.
+if [ -n "$SUDO_USER" ]; then
+    USER_ID=$(id -u "$SUDO_USER" 2>/dev/null || true)
+    if [ -n "$USER_ID" ]; then
+        sudo -u "$SUDO_USER" XDG_RUNTIME_DIR="/run/user/$USER_ID" \
+            systemctl --user start tweetdelete.service 2>/dev/null || true
+    fi
+fi
+
+exit 0

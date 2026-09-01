@@ -1,0 +1,392 @@
+:root {
+  --bg: #F7F6F2;
+  --surface: #F9F8F5;
+  --surface-alt: #FBFBF9;
+  --border: #D4D1CA;
+  --text: #28251D;
+  --text-muted: #7A7974;
+  --text-faint: #BAB9B4;
+  --primary: #01696F;
+  --primary-hover: #0C4E54;
+  --error: #A12C7B;
+  --warning: #964219;
+  --success: #437A22;
+  --radius: 10px;
+  --max-width: 720px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #171614;
+    --surface: #1C1B19;
+    --surface-alt: #201F1D;
+    --border: #393836;
+    --text: #CDCCCA;
+    --text-muted: #797876;
+    --text-faint: #5A5957;
+    --primary: #4F98A3;
+    --primary-hover: #227F8B;
+    --error: #D163A7;
+    --warning: #BB653B;
+    --success: #6DAA45;
+  }
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  /* env(safe-area-inset-*) keeps content clear of notches, punch-holes and the
+     gesture-nav bar on edge-to-edge phones (viewport-fit=cover is set above). */
+  padding: max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(64px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+
+main {
+  width: 100%;
+  max-width: var(--max-width);
+}
+
+header.app-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+header.app-header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+}
+
+header.app-header .account-badge {
+  font-size: 14px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 20px;
+}
+
+.card h2 {
+  font-size: 18px;
+  margin: 0 0 6px;
+}
+
+.card .card-sub {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin: 0 0 20px;
+}
+
+.field {
+  margin-bottom: 16px;
+}
+
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+}
+
+.field input[type="text"],
+.field input[type="date"] {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 15px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.field input[type="file"] {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.field input:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.field .hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.radio-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-alt);
+  cursor: pointer;
+}
+
+.radio-option:has(input:checked) {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface-alt));
+}
+
+.radio-option input[type="radio"] {
+  margin-top: 3px;
+  accent-color: var(--primary);
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.radio-option .radio-label {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.radio-option .radio-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.custom-dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 4px 0 16px 30px;
+}
+
+@media (max-width: 480px) {
+  .custom-dates { grid-template-columns: 1fr; }
+
+  /* Narrow phones (~320-390px wide in portrait): the title + account badge
+     row is the one place a two-item flex row gets cramped, so stack it. */
+  header.app-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  header.app-header .account-badge {
+    width: 100%;
+    justify-content: space-between;
+  }
+  header.app-header h1 { font-size: 21px; }
+
+  .card { padding: 18px; }
+  .button-row button, .button-row a.button { flex: 1 1 auto; }
+}
+
+@media (orientation: landscape) and (max-height: 420px) {
+  /* Short landscape phones: trim vertical whitespace so controls near the
+     bottom (Start deleting / Cancel) aren't pushed below the fold. */
+  body { padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+  header.app-header { margin-bottom: 14px; }
+  .card { padding: 16px; margin-bottom: 14px; }
+}
+
+.button-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+button {
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 11px 20px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+button.primary {
+  background: var(--primary);
+  color: #fff;
+}
+button.primary:hover { background: var(--primary-hover); }
+button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+button.secondary {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+button.secondary:hover { background: var(--surface-alt); }
+
+button.danger {
+  background: transparent;
+  color: var(--error);
+  border-color: var(--error);
+}
+button.danger:hover { background: color-mix(in srgb, var(--error) 10%, transparent); }
+
+a.button {
+  display: inline-block;
+  text-decoration: none;
+  text-align: center;
+}
+
+.hidden { display: none !important; }
+
+.banner {
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13.5px;
+  margin-bottom: 20px;
+  border: 1px solid;
+}
+
+.banner.info {
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  color: var(--text);
+}
+
+.banner.warning {
+  background: color-mix(in srgb, var(--warning) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+  color: var(--text);
+}
+
+.error-text { color: var(--error); font-weight: 600; }
+
+.progress-summary {
+  font-size: 15px;
+  margin-bottom: 18px;
+}
+
+.progress-summary strong { font-variant-numeric: tabular-nums; }
+
+.progress-bar-track {
+  width: 100%;
+  height: 14px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  width: 0%;
+  transition: width 0.25s ease;
+}
+
+.progress-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.status-line {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  min-height: 20px;
+  margin-bottom: 16px;
+}
+
+.log-box {
+  max-height: 160px;
+  overflow-y: auto;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.callback-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.callback-box {
+  text-align: center;
+  max-width: 360px;
+}
+
+.done-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--success);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  margin: 0 auto 16px;
+}
+
+footer.app-footer {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-top: 32px;
+}
+
+footer.app-footer a { color: var(--text-muted); }

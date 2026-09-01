@@ -1,0 +1,20 @@
+[Unit]
+Description=TweetDelete local helper server
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+# Fixed port, not the auto-picking-next-free-port fallback server.py uses
+# for the Windows tray app: for a persistent daemon, silently drifting to a
+# different port would break the OAuth redirect URI you registered with X
+# without any obvious symptom. Binding this exact port and failing loudly
+# if it's taken (visible via `systemctl --user status tweetdelete`) is the
+# right behavior here.
+ExecStart=/usr/bin/python3 /usr/lib/tweetdelete/server.py 8765
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Connecting to X…</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="callback-screen">
+    <div id="status" class="callback-box">
+      <div class="spinner" aria-hidden="true"></div>
+      <p id="statusText">Connecting to X…</p>
+      <a id="backLink" href="/" class="hidden button secondary">Back to TweetDelete</a>
+    </div>
+  </main>
+
+  <script type="module">
+    import { completeLogin } from "./oauth.js";
+
+    const statusText = document.getElementById("statusText");
+    const backLink = document.getElementById("backLink");
+    const spinner = document.querySelector(".spinner");
+
+    function finish(message, isError) {
+      spinner.style.display = "none";
+      statusText.textContent = message;
+      statusText.className = isError ? "error-text" : "";
+      backLink.classList.remove("hidden");
+    }
+
+    (async () => {
+      const params = new URLSearchParams(window.location.search);
+      const error = params.get("error");
+      const code = params.get("code");
+      const state = params.get("state");
+
+      if (error) {
+        finish(`X denied authorization: ${params.get("error_description") || error}`, true);
+        return;
+      }
+      if (!code || !state) {
+        finish("Missing authorization code. Please try connecting again.", true);
+        return;
+      }
+
+      try {
+        await completeLogin(code, state);
+        statusText.textContent = "Connected. Redirecting…";
+        window.location.replace("/");
+      } catch (e) {
+        finish(e.message || "Login failed.", true);
+      }
+    })();
+  </script>
+</body>
+</html>

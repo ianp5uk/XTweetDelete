@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=TweetDelete
+Comment=Bulk delete your posts, reposts, and likes on X
+Exec=tweetdelete
+Icon=tweetdelete
+Terminal=false
+Categories=Network;
+StartupNotify=false

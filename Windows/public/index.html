@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>TweetDelete — Bulk delete your posts on X</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<main>
+  <header class="app-header">
+    <h1>TweetDelete</h1>
+    <div id="accountBadge" class="account-badge hidden">
+      <span id="accountHandle"></span>
+      <button id="settingsBtn" class="secondary" type="button">Settings</button>
+      <button id="disconnectBtn" class="danger" type="button">Disconnect</button>
+    </div>
+  </header>
+
+  <!-- SCREEN: first-run / settings (Client ID + redirect URI) -->
+  <section id="screenSettings" class="card hidden">
+    <h2>Connect your X developer app</h2>
+    <p class="card-sub">
+      These are your app's OAuth 2.0 credentials, not your X password. They're stored
+      only in this browser and can be edited any time. Create a Single Page App at
+      <a href="https://console.x.com" target="_blank" rel="noopener">console.x.com</a>
+      with OAuth 2.0 enabled — see README.md for the full walkthrough.
+    </p>
+
+    <div class="field">
+      <label for="clientIdInput">Client ID</label>
+      <input type="text" id="clientIdInput" autocomplete="off" placeholder="e.g. abcDEF123..." />
+    </div>
+
+    <div class="field">
+      <label for="redirectUriInput">Redirect / callback URI</label>
+      <input type="text" id="redirectUriInput" autocomplete="off" />
+      <p class="hint">Must exactly match what's registered in your X app's OAuth settings, including trailing slash.</p>
+    </div>
+
+    <div class="button-row">
+      <button id="saveSettingsBtn" class="primary" type="button">Save</button>
+      <button id="cancelSettingsBtn" class="secondary hidden" type="button">Cancel</button>
+    </div>
+  </section>
+
+  <!-- SCREEN: connect (client saved, not logged in) -->
+  <section id="screenConnect" class="card hidden">
+    <h2>Connect to X</h2>
+    <p class="card-sub">You'll be sent to X to review and approve access, then brought back here.</p>
+    <div class="button-row">
+      <button id="connectBtn" class="primary" type="button">Connect to X</button>
+      <button id="editClientBtn" class="secondary" type="button">Edit credentials</button>
+    </div>
+    <p id="connectError" class="error-text hidden"></p>
+  </section>
+
+  <!-- SCREEN: main (logged in, choose what to delete) -->
+  <section id="screenMain" class="hidden">
+    <div class="banner info">
+      This tool tries the live API first. If X's API can't return your complete history
+      for a category (it compares against your account's real lifetime totals), you'll be
+      offered the chance to fill the gap by uploading your X data archive before anything
+      is deleted. Deletion is permanent and cannot be undone.
+    </div>
+
+    <div class="card">
+      <h2>What should be included?</h2>
+      <p class="card-sub">Pick any combination. Your choices are remembered as the default next time.</p>
+
+      <div class="radio-group" id="categoryCheckGroup">
+        <label class="radio-option">
+          <input type="checkbox" id="catPosts" checked />
+          <span><span class="radio-label">Posts &amp; replies</span><br /><span class="radio-desc">Your own posts and replies. Date reflects when each was posted.</span></span>
+        </label>
+        <label class="radio-option">
+          <input type="checkbox" id="catReposts" />
+          <span><span class="radio-label">Reposts (retweets)</span><br /><span class="radio-desc">Undoes reposts you made. Date reflects when you reposted, not the original post's date.</span></span>
+        </label>
+        <label class="radio-option">
+          <input type="checkbox" id="catLikes" />
+          <span><span class="radio-label">Likes</span><br /><span class="radio-desc">Removes your likes. X doesn't expose when you liked something — the date used is the original post's date, not when you liked it.</span></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>What date range?</h2>
+      <p class="card-sub">Applies to every category selected above.</p>
+
+      <div class="radio-group" id="modeRadioGroup">
+        <label class="radio-option">
+          <input type="radio" name="mode" value="everything" />
+          <span><span class="radio-label">Everything</span><br /><span class="radio-desc">Everything found, across all selected categories.</span></span>
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="mode" value="7d" />
+          <span><span class="radio-label">Everything older than 7 days</span></span>
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="mode" value="30d" />
+          <span><span class="radio-label">Everything older than 30 days</span></span>
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="mode" value="custom" />
+          <span><span class="radio-label">Custom date range</span></span>
+        </label>
+      </div>
+
+      <div id="customDates" class="custom-dates hidden">
+        <div class="field">
+          <label for="customStart">Start date</label>
+          <input type="date" id="customStart" />
+        </div>
+        <div class="field">
+          <label for="customEnd">End date</label>
+          <input type="date" id="customEnd" />
+        </div>
+      </div>
+
+      <div class="button-row">
+        <button id="mainCancelBtn" class="secondary" type="button">Cancel</button>
+        <button id="mainDeleteBtn" class="primary" type="button">Delete</button>
+      </div>
+      <p id="mainError" class="error-text hidden"></p>
+    </div>
+  </section>
+
+  <!-- SCREEN: archive gate (only shown if the API can't return full history) -->
+  <section id="screenArchive" class="card hidden">
+    <h2>X's API is missing some history</h2>
+    <p id="archiveExplainer" class="card-sub"></p>
+
+    <div id="archiveTweetField" class="field hidden">
+      <label for="archiveTweetFile">Upload tweet.js (from your X data archive's data/ folder)</label>
+      <input type="file" id="archiveTweetFile" accept=".js" multiple />
+      <p class="hint">Fills the gap for posts, replies, and reposts.</p>
+    </div>
+
+    <div id="archiveLikeField" class="field hidden">
+      <label for="archiveLikeFile">Upload like.js (from your X data archive's data/ folder)</label>
+      <input type="file" id="archiveLikeFile" accept=".js" multiple />
+      <p class="hint">Fills the gap for likes.</p>
+    </div>
+
+    <p id="archiveStatus" class="status-line"></p>
+
+    <div class="button-row">
+      <button id="archiveContinueBtn" class="primary" type="button">Continue</button>
+      <button id="archiveCancelBtn" class="secondary" type="button">Cancel</button>
+    </div>
+    <p class="hint" style="margin-top:10px;">You can also click Continue without uploading anything to proceed with only what the API found.</p>
+  </section>
+
+  <!-- SCREEN: progress -->
+  <section id="screenProgress" class="card hidden">
+    <h2>Deleting</h2>
+    <p id="progressSummaryLine" class="progress-summary"></p>
+
+    <div id="progressBarWrap">
+      <div class="progress-bar-track">
+        <div id="progressBarFill" class="progress-bar-fill"></div>
+      </div>
+      <div class="progress-stats">
+        <span id="progressCount">0 / 0</span>
+        <span id="progressFailCount"></span>
+      </div>
+    </div>
+
+    <p id="progressStatusLine" class="status-line"></p>
+
+    <div class="banner warning">
+      Keep this browser tab open while deletion is running. Closing it will abort the
+      process — anything already deleted stays deleted, and anything not yet reached
+      will remain on your account.
+    </div>
+
+    <div class="button-row">
+      <button id="startDeleteBtn" class="primary hidden" type="button">Start deleting</button>
+      <button id="pauseResumeBtn" class="secondary hidden" type="button">Pause</button>
+      <button id="progressCancelBtn" class="danger" type="button">Cancel</button>
+    </div>
+
+    <div id="logBox" class="log-box hidden"></div>
+  </section>
+
+  <!-- SCREEN: done -->
+  <section id="screenDone" class="card hidden">
+    <div class="done-icon" id="doneIcon">✓</div>
+    <h2 id="doneTitle" style="text-align:center;">Run complete</h2>
+    <p id="doneMessage" class="card-sub" style="text-align:center;"></p>
+    <div class="button-row" style="justify-content:center;">
+      <button id="downloadLogBtn" class="secondary" type="button">Download log (CSV)</button>
+      <button id="doneBackBtn" class="primary" type="button">Back</button>
+    </div>
+  </section>
+
+  <footer class="app-footer">
+    Uses the official X API v2 with OAuth 2.0 (PKCE). No credentials leave this browser
+    except to X itself, via the local helper server.
+    <br />
+    <a href="/api/help" target="_blank" rel="noopener">Help / user guide (PDF)</a>
+  </footer>
+</main>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

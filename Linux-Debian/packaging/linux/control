@@ -1,0 +1,18 @@
+Package: tweetdelete
+Version: __VERSION__
+Section: net
+Priority: optional
+Architecture: all
+Depends: python3 (>= 3.8), xdg-utils, systemd
+Maintainer: TweetDelete <noreply@example.invalid>
+Description: Bulk delete your posts, reposts, and likes on X
+ A browser-based tool to bulk delete your own posts, replies, reposts, and
+ likes on X (Twitter), filtered by date range. All logic runs as plain
+ JavaScript in your browser; a small local systemd-managed helper server
+ exists only to work around X's API not supporting CORS for direct browser
+ requests, and to host the OAuth 2.0 callback page.
+ .
+ Depends on the system python3 (no bundled interpreter) since the server
+ has no third-party dependencies - any Python 3.8+ runs it identically, and
+ this way it always receives the same security patches as the rest of the
+ system via apt.

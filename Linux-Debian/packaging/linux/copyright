@@ -1,0 +1,8 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: TweetDelete
+Source: Personal project, not publicly distributed
+
+Files: *
+Copyright: 2026, the package owner
+License: proprietary
+Comment: Personal-use tool, packaged here only for local installation.

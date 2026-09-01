@@ -1,0 +1,17 @@
+#!/bin/sh
+set -e
+
+# Best-effort stop for the invoking user's own session (mirrors postinst's
+# best-effort start). Not fatal if it fails - e.g. no active session, or
+# the service was never actually started.
+if [ -n "$SUDO_USER" ]; then
+    USER_ID=$(id -u "$SUDO_USER" 2>/dev/null || true)
+    if [ -n "$USER_ID" ]; then
+        sudo -u "$SUDO_USER" XDG_RUNTIME_DIR="/run/user/$USER_ID" \
+            systemctl --user stop tweetdelete.service 2>/dev/null || true
+    fi
+fi
+
+systemctl --global disable tweetdelete.service 2>/dev/null || true
+
+exit 0

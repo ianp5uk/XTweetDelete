@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TweetDelete</string>
+    <string name="notif_channel_name">TweetDelete activity</string>
+    <string name="notif_channel_desc">Shows while TweetDelete is running so Android does not stop it mid-run.</string>
+    <string name="notif_idle_title">TweetDelete is running</string>
+    <string name="notif_idle_text">Open the app to connect and start a deletion.</string>
+    <string name="notif_active_title">Deleting your posts</string>
+    <string name="notif_active_text">Keep the app open or running in the background until this finishes.</string>
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches the primary/background colors in public/style.css so the
+         native window chrome (status bar, notification accent) doesn't
+         clash with the web UI's own colors. -->
+    <color name="td_primary">#01696F</color>
+    <color name="td_bg_light">#F7F6F2</color>
+    <color name="td_bg_dark">#171614</color>
+</resources>
