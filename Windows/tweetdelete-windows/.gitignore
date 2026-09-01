@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+build/
+dist/
+packaging/installer_output/
+.DS_Store

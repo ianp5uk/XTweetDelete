@@ -1,0 +1,5 @@
+# Build-time dependencies only. End users never install anything - these
+# are just what YOU need on your Windows machine to produce the installer.
+pystray>=0.19.5
+Pillow>=10.0
+pyinstaller>=6.6
