@@ -70,25 +70,20 @@ Gradle itself on first run.
 
 ### Signing key
 
-This source tree does **not** include a keystore — a signing key is
-private and should never be committed to a public repo, even a
-self-generated one. `app/build.gradle.kts`'s `release` signing config
-points at `../keystore/tweetdelete-release.keystore`, which you need to
-generate yourself once before `assembleRelease` will work:
+`keystore/tweetdelete-release.keystore` is a throwaway signing key
+generated for this build (alias `tweetdelete`, password `tweetdelete`,
+overridable via `TD_KEYSTORE_PASSWORD`/`TD_KEY_PASSWORD` env vars) so
+`assembleRelease` works out of the box. **Treat it as sensitive and back
+it up** — Android requires every update to an app be signed with the
+same key, so losing it means future versions can't overwrite this one
+(users would have to uninstall and reinstall). Before distributing this
+beyond your own devices, regenerate it with your own strong, private
+password:
 
 ```bash
-mkdir -p keystore
 keytool -genkeypair -v -keystore keystore/tweetdelete-release.keystore \
   -alias tweetdelete -keyalg RSA -keysize 2048 -validity 10000
 ```
-
-Set `TD_KEYSTORE_PASSWORD`/`TD_KEY_PASSWORD` env vars if you don't want
-to be prompted interactively, then **back the keystore file up
-somewhere private** — Android requires every update to an app be signed
-with the same key, so losing it means future versions can't overwrite
-this install (users would have to uninstall and reinstall). `.gitignore`
-in this tree already excludes `/keystore/` so you don't accidentally
-commit it.
 
 ## Installing the APK
 

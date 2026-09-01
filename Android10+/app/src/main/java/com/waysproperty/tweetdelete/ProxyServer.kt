@@ -64,11 +64,37 @@ class ProxyServer(private val context: Context, port: Int) : NanoHTTPD(port) {
 
     override fun serve(session: IHTTPSession): Response {
         val uri = session.uri
-        return if (uri.startsWith("/api/x/")) {
+        val response = if (uri.startsWith("/api/x/")) {
             proxy(session)
         } else {
             serveAsset(uri)
         }
+        // Force every response to close its connection rather than let
+        // NanoHTTPD keep it alive for a pipelined next request. This is the
+        // actual root cause behind delete calls failing with a stale,
+        // unrelated "tweet.fields" error from the *previous* GET request:
+        // NanoHTTPD reuses one session object across keep-alive requests on
+        // the same connection, and doesn't fully clear its parsed query
+        // string when the next request on that connection has none of its
+        // own - so a DELETE with no query string was inheriting the query
+        // string left over from the GET call just before it. Forcing a
+        // fresh connection per request (negligible cost on loopback)
+        // guarantees a fresh, correctly-initialized session every time.
+        response.closeConnection(true)
+        return response
+    }
+
+    /**
+     * NanoHTTPD's built-in Status enum only covers common codes. If X
+     * returns something outside that set (X's pay-per-use billing errors
+     * reportedly use 402 Payment Required, which is NOT in NanoHTTPD's
+     * enum), the old code fell back to plain OK (200) here — meaning a
+     * genuine failure from X would get silently relayed to the WebView as
+     * a fake success. This preserves the real code no matter what it is.
+     */
+    private class RawStatus(private val code: Int) : Response.IStatus {
+        override fun getDescription(): String = "$code Upstream"
+        override fun getRequestStatus(): Int = code
     }
 
     private fun proxy(session: IHTTPSession): Response {
@@ -83,21 +109,36 @@ class ProxyServer(private val context: Context, port: Int) : NanoHTTPD(port) {
                 if (key.lowercase() !in hopByHop) builder.addHeader(key, value)
             }
 
+            // Forward whatever method the WebView actually sent, explicitly,
+            // for every verb X's API uses here (GET, POST for the OAuth
+            // token exchange, DELETE for deletions). The previous version
+            // only special-cased POST/PUT/DELETE and silently left anything
+            // else (including a same-origin fetch quirk sending OPTIONS) on
+            // OkHttp's implicit default of GET — which would have forwarded
+            // it to api.x.com as the wrong method entirely.
             val method = session.method.name
-            if (method == "POST" || method == "PUT") {
-                val bodyBytes = readRequestBody(session)
-                val contentType = session.headers["content-type"]
-                    ?.toMediaTypeOrNull() ?: "application/x-www-form-urlencoded".toMediaTypeOrNull()
-                builder.method(method, bodyBytes.toRequestBody(contentType))
-            } else if (method == "DELETE") {
-                builder.delete()
+            when (method) {
+                "GET" -> builder.method("GET", null)
+                "HEAD" -> builder.method("HEAD", null)
+                "DELETE" -> {
+                    val bodyBytes = readRequestBody(session)
+                    val contentType = session.headers["content-type"]?.toMediaTypeOrNull()
+                    builder.method("DELETE", if (bodyBytes.isEmpty()) null else bodyBytes.toRequestBody(contentType))
+                }
+                else -> { // POST, PUT, and anything else that can carry a body.
+                    val bodyBytes = readRequestBody(session)
+                    val contentType = session.headers["content-type"]
+                        ?.toMediaTypeOrNull() ?: "application/x-www-form-urlencoded".toMediaTypeOrNull()
+                    builder.method(method, bodyBytes.toRequestBody(contentType))
+                }
             }
 
             http.newCall(builder.build()).execute().use { resp ->
                 val bytes = resp.body?.bytes() ?: ByteArray(0)
                 val contentType = resp.header("Content-Type") ?: "application/json"
+                val status: Response.IStatus = Response.Status.lookup(resp.code) ?: RawStatus(resp.code)
                 val r = newFixedLengthResponse(
-                    Response.Status.lookup(resp.code) ?: Response.Status.OK,
+                    status,
                     contentType,
                     bytes.inputStream(),
                     bytes.size.toLong()

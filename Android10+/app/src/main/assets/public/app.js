@@ -393,6 +393,29 @@ function dedupeById(items) {
   return Array.from(map.values());
 }
 
+// X's error bodies vary by endpoint/error type - most commonly either the
+// v2-style { errors: [{ message, ... }] } or the RFC 7807-style
+// { title, detail, type }. Pulls out whichever is present; falls back to
+// null (caller then just shows the bare status code) rather than dumping
+// raw JSON into the log.
+function extractErrorReason(detailText) {
+  if (!detailText) return null;
+  try {
+    const parsed = JSON.parse(detailText);
+    if (Array.isArray(parsed.errors) && parsed.errors[0]) {
+      const e = parsed.errors[0];
+      return e.message || e.detail || e.title || null;
+    }
+    if (parsed.detail || parsed.title) {
+      return [parsed.title, parsed.detail].filter(Boolean).join(": ");
+    }
+  } catch {
+    // Not JSON (rare, but possible for some error paths) - show trimmed raw text.
+    return detailText.slice(0, 200);
+  }
+  return null;
+}
+
 const CATEGORY_LABEL = { posts: "posts/replies", reposts: "reposts", likes: "likes" };
 const CATEGORY_SINGULAR = { posts: "post/reply", reposts: "repost", likes: "like" };
 
@@ -596,14 +619,20 @@ async function runDeletion(categories, dateFilter) {
         resultLog.push({ id: item.id, category: item.category, created_at: item.created_at, status: "deleted" });
       } else {
         failed++;
+        // result.detail is X's own error body (when it sent one) - a bare
+        // "HTTP 403" tells you nothing about *why*. Pull out a short,
+        // human-readable reason from it when possible, and keep the raw
+        // text too so the CSV export has the full picture.
+        const reason = extractErrorReason(result.detail);
+        const detailText = reason ? `HTTP ${result.status} — ${reason}` : `HTTP ${result.status}`;
         resultLog.push({
           id: item.id,
           category: item.category,
           created_at: item.created_at,
           status: "failed",
-          detail: `HTTP ${result.status}`,
+          detail: detailText,
         });
-        appendLog(`Failed to remove ${CATEGORY_SINGULAR[item.category]} ${item.id} (HTTP ${result.status})`);
+        appendLog(`Failed to remove ${CATEGORY_SINGULAR[item.category]} ${item.id}: ${detailText}`);
       }
 
       setProgressBar(deleted + failed, targets.length);
