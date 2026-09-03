@@ -7,7 +7,7 @@ only because X's API does not support CORS and does not allow `file://`
 OAuth redirects — see **Why the local script?** below.
 
 ## Quick(ish) Start
-- Download the installer from Releases.
+- [Download the installer from Releases.](https://github.com/ianp5uk/XTweetDelete/releases/download/Windows_RC1/TweetDelete-Setup.exe)
 - Get an XDeveloper accounts, setup an app environment for TweetDelete within the developer console.
 This is just to get a client id and be able to add credits for api access to X.
 - Get the client id
