@@ -6,6 +6,15 @@ plain JavaScript in your browser. A small local Python script is required
 only because X's API does not support CORS and does not allow `file://`
 OAuth redirects — see **Why the local script?** below.
 
+## Quick Start
+- Download the installer from Releases.
+- Get an XDeveloper accounts, setup an app within the developer console for TweetDelete
+- Get the client id
+- Start TweetDelete and input the client id just obtained.
+- Put a few credits on the X developer dashboard.
+
+If it's possible, at some point I will add some automation for this process.
+
 ## What it does
 
 - Connects to your own X account via OAuth 2.0 (Authorization Code + PKCE) —
