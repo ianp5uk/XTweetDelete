@@ -8,7 +8,8 @@ OAuth redirects — see **Why the local script?** below.
 
 ## Quick Start
 - Download the installer from Releases.
-- Get an XDeveloper accounts, setup an app within the developer console for TweetDelete
+- Get an XDeveloper accounts, setup an app environment for TweetDelete within the developer console.
+This is just to get a client id and be able to add credits for api access to X.
 - Get the client id
 - Start TweetDelete and input the client id just obtained.
 - Put a few credits on the X developer dashboard.
