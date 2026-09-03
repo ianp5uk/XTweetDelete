@@ -12,6 +12,7 @@ OAuth redirects — see **Why the local script?** below.
 This is just to get a client id and be able to add credits for api access to X.
 - Get the client id
 - Start TweetDelete and input the client id just obtained.
+- You'll be asked to authorise by logging in to X.
 - Put a few credits on the X developer dashboard.
 
 If it's possible, at some point I will add some automation for this process.
