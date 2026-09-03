@@ -10,8 +10,10 @@
 
 
 ## What does TweetDelete do?
-TweetDelete will delete your posts, replies, likes & reposts from X in bulk. For a small number of Tweets, it will do this without manual assistance but X has limits including rate limiting. If you have many thousands of tweets it will delete as many as it can up to the search limit that X allows. It will then stop and ask you to download an archive file of the tweets from X and provide it with that to find the others and delete them. This is a limitation imposed by X, it may change with time, at the time of writing the limit was 3,200 before an archive is required manually. I found that to delete very old likes requires the archive download.
+TweetDelete will delete your posts, replies, likes & reposts from X in bulk. For a small number of Tweets, it will do this without manual assistance but X has limits including rate limiting. If you have many thousands of tweets it will delete as many as it can up to the search limit that X allows. It will then stop and ask you to download an archive file of the tweets from X and provide it with that to find the others and delete them. This is a limitation imposed by X, it may change with time, at the time of writing the limit was 3,200 before an archive is required manually. 
 If you have a small number of tweets, say <50, it should do that pretty quickly in just a second or two. As you have more it will take longer as X limits the rate of access. Currently to 5
+
+I found that to delete very old likes requires the archive download. Not sure if this is an X thing or TweetDelete.
 
 ## Why would I need this?
 Deleting tweets on X is a laborious, one at a time process. This automates it.
