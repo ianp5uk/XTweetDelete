@@ -8,8 +8,8 @@ OAuth redirects — see **Why the local script?** below.
 
 ## Quick(ish) Start
 - [Download the installer from Releases.](https://github.com/ianp5uk/XTweetDelete/releases/download/Windows_RC1/TweetDelete-Setup.exe)
-- Get an [XDeveloper accounts](https://developer.x.com/), setup an app environment for TweetDelete within the developer console.
-This is just to get a client id and be able to add credits for api access to X.
+- Get an [X Developer account](https://developer.x.com/), setup an app environment for TweetDelete within the developer console.
+(This is to get a client id and add credits for api access to X.)
 - Get the client id
 - Install TweetDelete on Windows.
 - Start TweetDelete and input the client id just obtained.
