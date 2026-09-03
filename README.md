@@ -1,6 +1,6 @@
 # TweetDelete / XTweetDelete
 
-*I call the app TweetDelete but there is another web based service called https://tweetdelete.net/ that has registered the name on X. Hence you may see XTweetDelete used for this desktop app in places to avoid namespace conflicts, e.g., X’s developer console and authorisation process.*
+*I call the app TweetDelete but there is another web based service called https://tweetdelete.net/ that has registered the name on X. Hence you may see XTweetDelete used for this desktop app in places to avoid namespace conflicts, e.g., X’s developer console and authorisation process. It hasn't been extensively tested other than I use it and it has worked without issue*
 
 
 <p align="center">
@@ -10,11 +10,11 @@
 
 
 ## What does TweetDelete do?
-TweetDelete will delete your posts, replies, likes & reposts from X in bulk. For a small number of Tweets, it will do this without manual assistance but X has limits including rate limiting. If you have many thousands of tweets it will delete as many as it can up to the search limit that X allows. It will then stop and ask you to download an archive file of the tweets from X and provide it with that to find the others and delete them. This is a limitation imposed by X, it may change with time, at the time of writing the limit was 3,200 before an archive is required manually.
-If you have a small number of tweets, say <50, it should do that pretty quickly in just a second or two. As you have more it will take longer as X limits the rate of access. 
+TweetDelete will delete your posts, replies, likes & reposts from X in bulk. For a small number of Tweets, it will do this without manual assistance but X has limits including rate limiting. If you have many thousands of tweets it will delete as many as it can up to the search limit that X allows. It will then stop and ask you to download an archive file of the tweets from X and provide it with that to find the others and delete them. This is a limitation imposed by X, it may change with time, at the time of writing the limit was 3,200 before an archive is required manually. I found that to delete very old likes requires the archive download.
+If you have a small number of tweets, say <50, it should do that pretty quickly in just a second or two. As you have more it will take longer as X limits the rate of access. Currently to 5
 
 ## Why would I need this?
-Deleting tweets on X is a laborious one at a time process. This automates it.
+Deleting tweets on X is a laborious, one at a time process. This automates it.
 You might wonder why you would want to do this. We are seeing increasing surveillance and restriction on free speech. Tweets are taken out of context; police action is taken based on claimed offence. Let’s face it someone, somewhere is always going to claim offence at other’s opinions. We also all grow and change and for personalities & politicians the media regularly rakes up old tweets in order to embarrass, mislead and even destroy careers. It is not uncommon to say something stupid and rash in an emotional state or from lack of maturity when young.
 
 ## How do you use it?
