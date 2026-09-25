@@ -22,6 +22,11 @@ it with:
   15 minutes, so a large account can take hours; Android suspends
   background work far more aggressively than a desktop browser tab, and
   this is the standard way to ask it not to.
+- **`DeletionEngine.kt`** (v1.0.3+) — the actual delete loop, in Kotlin,
+  running inside `ProxyService`. The web UI still handles login, fetching,
+  filtering and the archive step, then hands the final target list to this
+  engine via the JS bridge and only displays its progress. See "Background
+  runs" below for why.
 - **`MainActivity.kt`** — hosts a `WebView` pointed at
   `http://127.0.0.1:<port>/`, wires up the Android file picker for the
   optional X-archive upload (`archive.js`'s `<input type="file">`), and
@@ -119,16 +124,64 @@ your own machine) and walk through: connecting to X, running a small test
 deletion, backgrounding the app mid-run to confirm the notification keeps
 it alive, and the CSV log download.
 
+## Background runs (fixed in v1.0.3)
+
+Up to v1.0.2 the deletion loop was JavaScript inside the WebView. The
+foreground service and wake lock kept the app process alive, but not the
+WebView's JavaScript timers: once the page is hidden (app in background or
+screen off) Chromium throttles and can suspend them. The 15-minute
+rate-limit wait also counted 500 ms ticks instead of checking the clock, so
+under throttling it effectively never ended — runs stalled after the first
+50 deletions. Battery-optimisation settings could not help, because the
+process was never the thing being stopped.
+
+From v1.0.3:
+
+- The loop runs natively in the foreground service (`DeletionEngine.kt`),
+  independent of the WebView. All waits are wall-clock based.
+- Rate limits: pre-emptive 50 per 15 min per category (plus 1,000 per 24 h
+  for likes), and X's own `x-rate-limit-remaining` / `x-rate-limit-reset`
+  headers are honoured; a 429 retries the same item after the reset time
+  instead of recording a failure.
+- Network drop-outs retry the same item with back-off (15 s up to 5 min)
+  instead of aborting the whole run.
+- Access tokens (2-hour lifetime) are refreshed natively; the rotated
+  refresh token is handed back to the page so you stay logged in after.
+- Run state is saved after every item to app-private storage. If Android
+  kills the process anyway, the run resumes when the service is recreated
+  (sticky restart, or simply reopening the app).
+- 10 consecutive failures with the same HTTP status (e.g. exhausted API
+  credits) auto-pause the run instead of burning through the list.
+- The notification shows progress and the time the current rate-limit
+  wait ends.
+- The wake lock is renewed continuously in 1-hour slices (the old fixed
+  12-hour cap was shorter than a full 3,200-post run).
+
+### Countdown display (v1.0.4)
+
+Rate-limit waits show a live `m:ss` countdown (`h:mm:ss` for waits of an
+hour or more) plus the clock time of resumption, in the app while it is on
+screen and in the notification (Android's own chronometer, so it ticks
+without waking the app). This applies both while fetching posts and while
+deleting. If X still refuses once the countdown ends, the app shows
+"Waiting for X to accept resumption", with a new countdown if X gives a
+later reset time.
+
+For best results on GrapheneOS/stock Android, leave battery usage for
+TweetDelete on "Unrestricted". That also allows Android 12+ to restart the
+service from the background after a kill.
+
 ## Known limitations (carried over from the desktop build, still apply)
 
 - X's pay-per-use API pricing applies here exactly as on desktop — reading
   a large post history costs real money before you delete anything.
 - A foreground service materially improves survivability but is not a
   guarantee against a reboot, a manual force-stop, or severe memory
-  pressure killing the process mid-run. The deletion loop re-fetches the
-  live remaining set from the API on every run rather than trusting a
-  saved checkpoint, so simply reopening the app and starting again safely
-  picks up wherever an interrupted run left off.
+  pressure killing the process mid-run. From v1.0.3 an interrupted run
+  resumes from its saved position; a fresh run also re-fetches the live
+  remaining set from the API, so starting again is always safe.
+- Rebooting or force-stopping the app stops the run until the app is
+  opened again (it then resumes automatically).
 
 ## Sources
 

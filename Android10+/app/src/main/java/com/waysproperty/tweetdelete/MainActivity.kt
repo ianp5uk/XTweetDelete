@@ -76,7 +76,7 @@ class MainActivity : ComponentActivity() {
 
         onBackPressedDispatcher.addCallback(this) {
             when {
-                deletionActive -> confirmExitDuringDeletion()
+                deletionActive || proxyService?.engine?.isRunning == true -> confirmExitDuringDeletion()
                 webView.canGoBack() -> webView.goBack()
                 else -> finish()
             }
@@ -96,13 +96,12 @@ class MainActivity : ComponentActivity() {
         android.app.AlertDialog.Builder(this)
             .setTitle("Deletion in progress")
             .setMessage(
-                "A deletion run is still going. Leaving the app now (or the app being " +
-                "closed by Android) will stop it — anything already deleted stays deleted, " +
-                "and the rest will remain until you reopen the app and run it again.\n\n" +
-                "The foreground notification will keep it running in the background if you " +
-                "just want to switch apps instead of exiting."
+                "The run carries on in the background after you leave the app — you can " +
+                "follow it from the notification, and reopening the app shows its progress. " +
+                "If you are still fetching posts (before tapping Start deleting), leaving " +
+                "now will abandon that step."
             )
-            .setPositiveButton("Exit anyway") { _, _ -> finish() }
+            .setPositiveButton("Leave") { _, _ -> moveTaskToBack(true) }
             .setNegativeButton("Stay", null)
             .show()
     }
@@ -169,6 +168,41 @@ class MainActivity : ComponentActivity() {
             deletionActive = active
             runOnUiThread { proxyService?.setDeletionActive(active) }
         }
+
+        // ---- Native deletion runner (v1.0.3+) ----
+
+        @JavascriptInterface
+        fun hasNativeRunner(): Boolean = true
+
+        /** Returns "" on success, otherwise an error message. */
+        @JavascriptInterface
+        fun startNativeRun(payloadJson: String): String {
+            val svc = proxyService ?: return "Background service not available."
+            return try {
+                svc.engine.start(payloadJson) ?: ""
+            } catch (e: Exception) {
+                Log.e("TweetDelete", "startNativeRun failed", e)
+                "Could not start: ${e.message}"
+            }
+        }
+
+        @JavascriptInterface
+        fun getRunStatus(): String = proxyService?.engine?.statusJson() ?: "{\"state\":\"unavailable\"}"
+
+        @JavascriptInterface
+        fun getRunResults(from: Int): String = proxyService?.engine?.resultsJson(from) ?: "[]"
+
+        @JavascriptInterface
+        fun pauseNativeRun(paused: Boolean) { proxyService?.engine?.setPaused(paused) }
+
+        @JavascriptInterface
+        fun cancelNativeRun() { proxyService?.engine?.cancel() }
+
+        @JavascriptInterface
+        fun clearNativeRun() { proxyService?.engine?.clear() }
+
+        @JavascriptInterface
+        fun takeUpdatedTokens(): String = proxyService?.engine?.takeUpdatedTokens() ?: ""
 
         @JavascriptInterface
         fun saveCsvLog(filename: String, csv: String) {

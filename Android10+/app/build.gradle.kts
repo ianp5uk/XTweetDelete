@@ -14,8 +14,8 @@ android {
         // compatibility shims for pre-scoped-storage Android.
         minSdk = 29
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.0.2"
+        versionCode = 5
+        versionName = "1.0.4"
     }
 
     signingConfigs {
@@ -52,6 +52,11 @@ android {
     buildFeatures {
         viewBinding = false
     }
+
+    // JVM unit tests for DeletionEngine (./gradlew testDebugUnitTest).
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
@@ -67,4 +72,9 @@ dependencies {
     implementation("org.nanohttpd:nanohttpd:2.3.1")
     // Used inside the proxy to forward requests/responses to api.x.com.
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    // Real org.json for JVM tests (android.jar only ships stubs).
+    testImplementation("org.json:json:20240303")
 }

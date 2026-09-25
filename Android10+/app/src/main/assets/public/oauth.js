@@ -68,6 +68,13 @@ function setTokens(tokens) {
   localStorage.setItem(LS_TOKENS, JSON.stringify(tokens));
 }
 
+// Android v1.0.3+: the native deletion runner refreshes tokens itself during
+// long runs. X rotates refresh tokens, so the page must adopt the runner's
+// newer pair or its own stored refresh token would be dead afterwards.
+export function adoptTokens(tokens) {
+  if (tokens && tokens.access_token) setTokens(tokens);
+}
+
 export function clearSession() {
   localStorage.removeItem(LS_TOKENS);
   sessionStorage.removeItem(SS_VERIFIER);

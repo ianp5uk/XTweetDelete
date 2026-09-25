@@ -6,5 +6,6 @@
     <string name="notif_idle_title">TweetDelete is running</string>
     <string name="notif_idle_text">Open the app to connect and start a deletion.</string>
     <string name="notif_active_title">Deleting your posts</string>
-    <string name="notif_active_text">Keep the app open or running in the background until this finishes.</string>
+    <string name="notif_active_text">Deleting in the background. You can leave the app or turn the screen off.</string>
+    <string name="notif_fetch_text">Fetching your posts from X…</string>
 </resources>

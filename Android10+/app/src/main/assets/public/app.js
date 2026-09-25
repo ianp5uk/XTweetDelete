@@ -348,6 +348,54 @@ function setStatus(text) {
   el("progressStatusLine").textContent = text;
 }
 
+// Delay until the displayed countdown next changes (whole seconds left
+// ticks over when (until - now) crosses a multiple of 1000 ms).
+function msToNextSecond(until) {
+  const left = until - Date.now();
+  if (left <= 0) return 1000;
+  return (left % 1000 || 1000) + 20;
+}
+
+// "m:ss", or "h:mm:ss" for waits of an hour or more (e.g. the 24 h likes cap).
+function formatCountdown(ms) {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = String(total % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
+}
+
+// Live countdown on the status line for waits run by the page itself
+// (fetch phase, and the non-native fallback delete loop). Ticks every
+// second while visible; being wall-clock based it is correct again the
+// moment the page is shown after being in the background. When the time
+// is up it switches to a holding message until stopCountdown() is called
+// by the next bit of real progress.
+let countdownTimer = null;
+
+function startCountdown(label, until, xDelayed = false) {
+  stopCountdown();
+  const tick = () => {
+    const left = until - Date.now();
+    if (left > 0) {
+      const head = xDelayed ? "Waiting for X to accept resumption" : label;
+      setStatus(`${head} — resuming in ${formatCountdown(left)} (at ${formatClock(until)})`);
+    } else {
+      setStatus("Waiting for X to accept resumption…");
+    }
+  };
+  const loop = () => {
+    tick();
+    countdownTimer = setTimeout(loop, msToNextSecond(until));
+  };
+  loop();
+}
+
+function stopCountdown() {
+  if (countdownTimer) clearTimeout(countdownTimer);
+  countdownTimer = null;
+}
+
 function appendLog(line) {
   const box = el("logBox");
   box.classList.remove("hidden");
@@ -363,12 +411,15 @@ function setProgressBar(done, total) {
   el("progressCount").textContent = `${done} / ${total}`;
 }
 
+// Measures against the wall clock. The previous version subtracted the
+// nominal tick length on each loop, so when a hidden WebView throttled its
+// timers (1 tick per second or per minute instead of per 500 ms) a
+// 15-minute wait stretched to many hours.
 async function sleepInterruptible(ms, tickMs = 500) {
-  let remaining = ms;
-  while (remaining > 0 && !runState.cancelled) {
-    const step = Math.min(tickMs, remaining);
-    await new Promise((r) => setTimeout(r, step));
-    remaining -= step;
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline && !runState.cancelled) {
+    const step = Math.min(tickMs, deadline - Date.now());
+    await new Promise((r) => setTimeout(r, Math.max(step, 0)));
   }
 }
 
@@ -455,8 +506,9 @@ async function runDeletion(categories, dateFilter) {
         shouldStop: () => runState.cancelled,
         onPage: (page, totalSoFar, meta) => {
           if (meta && meta.rateLimitedSeconds) {
-            setStatus(`Rate limited while fetching posts — resuming in ~${meta.rateLimitedSeconds}s…`);
+            startCountdown("Rate limited while fetching posts", meta.rateLimitedUntil, meta.attempt > 1);
           } else {
+            stopCountdown();
             setStatus(`Fetched ${totalSoFar} posts so far…`);
           }
         },
@@ -481,8 +533,9 @@ async function runDeletion(categories, dateFilter) {
         shouldStop: () => runState.cancelled,
         onPage: (page, totalSoFar, meta) => {
           if (meta && meta.rateLimitedSeconds) {
-            setStatus(`Rate limited while fetching likes — resuming in ~${meta.rateLimitedSeconds}s…`);
+            startCountdown("Rate limited while fetching likes", meta.rateLimitedUntil, meta.attempt > 1);
           } else {
+            stopCountdown();
             setStatus(`Fetched ${totalSoFar} likes so far…`);
           }
         },
@@ -572,6 +625,28 @@ async function runDeletion(categories, dateFilter) {
     setProgressBar(0, targets.length);
     setStatus("");
 
+    // ---- Android: hand the list to the native runner ----
+    // The native runner lives in the foreground service, so it keeps going
+    // with the app in the background or the screen off (a WebView's JS
+    // timers do not). See DeletionEngine.kt.
+    if (hasNativeRunner()) {
+      await oauth.getValidAccessToken(); // make sure we hand over a fresh pair
+      const cfg = oauth.getClientConfig();
+      const payload = {
+        targets: targets.map((t) => ({ id: t.id, category: t.category, created_at: t.created_at || "" })),
+        userId: currentUser.id,
+        username: currentUser.username || "",
+        clientId: cfg.clientId,
+        tokens: oauth.getTokens(),
+      };
+      const err = window.AndroidBridge.startNativeRun(JSON.stringify(payload));
+      if (err) throw new Error(err);
+      window.AndroidBridge.notifyDeletionActive(false); // runner holds its own wake lock now
+      runState.native = true;
+      await monitorNativeRun();
+      return;
+    }
+
     // ---- Delete, paced independently per category (each has its own
     // rate-limit bucket on X's side) ----
     const limiters = {
@@ -595,8 +670,9 @@ async function runDeletion(categories, dateFilter) {
       const limiter = limiters[item.category];
       const waitMs = limiter.msUntilFree();
       if (waitMs > 0) {
-        setStatus(`Rate limit reached for ${CATEGORY_LABEL[item.category]} — resuming in ~${Math.ceil(waitMs / 1000)}s…`);
+        startCountdown(`Rate limit reached for ${CATEGORY_LABEL[item.category]}`, Date.now() + waitMs);
         await sleepInterruptible(waitMs);
+        stopCountdown();
         if (runState.cancelled) break;
         await waitWhilePaused();
         if (runState.cancelled) break;
@@ -647,8 +723,96 @@ async function runDeletion(categories, dateFilter) {
   }
 }
 
+function hasNativeRunner() {
+  try {
+    return !!(window.AndroidBridge && window.AndroidBridge.hasNativeRunner && window.AndroidBridge.hasNativeRunner());
+  } catch {
+    return false;
+  }
+}
+
+function syncTokensFromNative() {
+  if (!hasNativeRunner()) return;
+  try {
+    const t = window.AndroidBridge.takeUpdatedTokens();
+    if (t) oauth.adoptTokens(JSON.parse(t));
+  } catch {}
+}
+
+function formatClock(ms) {
+  return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+// Mirrors the native runner's progress into the page. Only a display loop:
+// if the WebView is throttled or frozen in the background nothing is lost,
+// it just catches up when the app is visible again.
+async function monitorNativeRun() {
+  showScreen("progress");
+  el("progressBarWrap").classList.remove("hidden");
+  el("pauseResumeBtn").classList.remove("hidden");
+  el("startDeleteBtn").classList.add("hidden");
+  let shownResults = 0;
+
+  while (true) {
+    let st;
+    try {
+      st = JSON.parse(window.AndroidBridge.getRunStatus());
+    } catch {
+      st = { state: "unavailable" };
+    }
+    syncTokensFromNative();
+
+    if (st.state === "running") {
+      if (!el("progressSummaryLine").textContent) {
+        el("progressSummaryLine").textContent = `${st.total} items being removed in the background.`;
+      }
+      const fresh = JSON.parse(window.AndroidBridge.getRunResults(shownResults));
+      for (const r of fresh) {
+        if (r.status === "failed") appendLog(`Failed to remove ${CATEGORY_SINGULAR[r.category]} ${r.id}: ${r.detail}`);
+      }
+      shownResults += fresh.length;
+      setProgressBar(st.deleted + st.failed, st.total);
+      el("progressFailCount").textContent = st.failed > 0 ? `${st.failed} failed` : "";
+      el("pauseResumeBtn").textContent = st.paused ? "Continue" : "Pause";
+      let line = st.status || "";
+      if (!st.paused && st.waitUntil > Date.now()) {
+        const verb = st.waitKind === "network" ? "retrying" : "resuming";
+        line = `${line} — ${verb} in ${formatCountdown(st.waitUntil - Date.now())} (at ${formatClock(st.waitUntil)}). ` +
+          "This keeps going if you leave the app or turn the screen off.";
+      }
+      setStatus(line);
+      const waiting = !st.paused && st.waitUntil > Date.now();
+      await new Promise((r) => setTimeout(r, waiting ? msToNextSecond(st.waitUntil) : 1000));
+      continue;
+    }
+
+    if (st.state === "finished") {
+      const results = JSON.parse(window.AndroidBridge.getRunResults(0));
+      syncTokensFromNative();
+      window.AndroidBridge.clearNativeRun();
+      finishRun({
+        cancelled: !!st.cancelled || !!st.error,
+        results,
+        total: st.total,
+        error: st.error || null,
+      });
+      return;
+    }
+
+    // idle/unavailable: nothing to show.
+    finishRun({ cancelled: true, results: [], error: "The background run could not be found." });
+    return;
+  }
+}
+
 el("pauseResumeBtn").addEventListener("click", () => {
   if (!runState) return;
+  if (runState.native) {
+    const st = JSON.parse(window.AndroidBridge.getRunStatus());
+    window.AndroidBridge.pauseNativeRun(!st.paused);
+    el("pauseResumeBtn").textContent = st.paused ? "Pause" : "Continue";
+    return;
+  }
   runState.paused = !runState.paused;
   el("pauseResumeBtn").textContent = runState.paused ? "Continue" : "Pause";
   setStatus(runState.paused ? "Paused. Click Continue to resume." : "");
@@ -663,12 +827,14 @@ el("progressCancelBtn").addEventListener("click", () => {
   if (window.confirm(message)) {
     runState.cancelled = true;
     runState.paused = false;
+    if (runState.native) window.AndroidBridge.cancelNativeRun();
   }
 });
 
 let lastLog = [];
 
 function finishRun({ cancelled, results = [], total = 0, empty = false, error = null }) {
+  stopCountdown();
   window.removeEventListener("beforeunload", beforeUnloadHandler);
   if (window.AndroidBridge) window.AndroidBridge.notifyDeletionActive(false);
   lastLog = results;
@@ -685,7 +851,9 @@ function finishRun({ cancelled, results = [], total = 0, empty = false, error = 
     icon.textContent = "!";
     icon.style.background = "var(--error)";
     title.textContent = "Run failed";
-    message.textContent = error;
+    message.textContent = results.length
+      ? `${error} Removed ${deleted} of ${effectiveTotal} before stopping` + (failed ? ` (${failed} failed).` : ".")
+      : error;
   } else if (empty) {
     icon.textContent = "i";
     icon.style.background = "var(--text-muted)";
@@ -748,6 +916,28 @@ async function route() {
     showScreen("settings");
     updateAccountBadge(null);
     return;
+  }
+
+  // Android: a run started earlier may still be going (or have finished)
+  // in the background, possibly after the app was closed or the process was
+  // restarted. Adopt its refreshed tokens first, then show it instead of the
+  // main screen - and do not call X from here meanwhile, since a token
+  // refresh from the page would invalidate the runner's rotated token.
+  if (hasNativeRunner()) {
+    syncTokensFromNative();
+    let st = null;
+    try {
+      st = JSON.parse(window.AndroidBridge.getRunStatus());
+    } catch {}
+    if (st && (st.state === "running" || st.state === "finished")) {
+      if (st.username) updateAccountBadge({ username: st.username });
+      runState = { cancelled: false, paused: false, native: true };
+      el("logBox").classList.add("hidden");
+      el("logBox").innerHTML = "";
+      el("progressSummaryLine").textContent = "";
+      await monitorNativeRun();
+      return;
+    }
   }
 
   if (!oauth.isLoggedIn()) {
