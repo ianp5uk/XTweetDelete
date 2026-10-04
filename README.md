@@ -33,6 +33,12 @@ During installation 2 things will be done; a tiny server component, which is mor
 
 Launch the app from the menu system or terminal; “tweetdelete”. It will launch and run in your default browser.
 
+### Warning!
+
+Once you tell TweetDelete to delete, it will try quite hard. If you close it the browser, the helper app will try to continue in the background. The browser is just the interface. If you stop the helper app, it will resume when it restarts, if you restart the PC, it will resume. To be sure of halting a run you need to kill the helper app and stop it from being restarted at next boot. To stop it forever delete the app. 
+
+A simpler and faster way to change your mind mid run will be added later.
+
 ## Operating System
 
 Currently I have built TweetDelete for 3 platforms; Windows 64 bit, Debian derived Linux & Android. The Windows version worked on my Intel  based Windows 11, it ought to run on other recent Windows options but has not been tested.  It uses Python (packaged) and Javascript.  The Debian version works on my Ubuntu 24.04 desktop and should run on most Debian based platforms that have Python >= v3.8  installed which is likely all of them.

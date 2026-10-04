@@ -4,4 +4,5 @@ build/
 dist/
 packaging/installer_output/
 .DS_Store
-/archive/
+archive/
+venv/

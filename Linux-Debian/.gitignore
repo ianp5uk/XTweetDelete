@@ -3,4 +3,5 @@ __pycache__/
 packaging/linux/stage/
 packaging/linux/output/
 .DS_Store
-/archive/
+archive/
+venv/
