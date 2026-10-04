@@ -35,7 +35,7 @@ Launch the app from the menu system or terminal; “tweetdelete”. It will laun
 
 ### Warning!
 
-Once you tell TweetDelete to delete, it will try quite hard. If you close it the browser, the helper app will try to continue in the background. The browser is just the interface. If you stop the helper app, it will resume when it restarts, if you restart the PC, it will resume. To be sure of halting a run you need to kill the helper app and stop it from being restarted at next boot. To stop it forever delete the app. 
+Once you tell TweetDelete to delete, it will try quite hard. If you close it the browser, the helper app will try to continue in the background. The browser is just the interface. If you stop the helper app, it will resume when it restarts, if you restart the PC, it will resume. To be sure of halting a run you need to kill the helper app and stop it from being restarted at next boot. To stop it forever delete the app & reinstall. At some point I will add the capability to easily halt but it's not something that should be needed really.
 
 A simpler and faster way to change your mind mid run will be added later.
 
