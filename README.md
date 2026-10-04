@@ -76,6 +76,12 @@ please email: think-1551@pm.me
 
 ## Installation
 
+### Android 10+
+
+Get the apk onto your device, locate the apk with the native file manager and click it to install
+
+[DOWNLOAD for Android       ](https://github.com/ianp5uk/XTweetDelete/blob/main/app-release_v1.04.apk)
+
 ### Windows 11, 64 bit x86
 
 It may work on other releases, maybe even ARM, I haven't tried. 
@@ -85,7 +91,7 @@ You 'may' get anti-virus warnings, usually not.
 
 It should be setup as any other Windows user app. There is a small server/proxy running and will show up on the system tray. This is needed due to X.com API and CORS protections. The app runs in the browser talking via the server/proxy.
 
-[DOWNLOAD for Windows   ]()
+[DOWNLOAD for Windows   ](https://github.com/ianp5uk/XTweetDelete/blob/main/TweetDelete-Setup_v1.04.exe)
 
 ### Debian / Ubuntu
 
@@ -98,4 +104,4 @@ It installs a small systemd server component, which should be started and will s
 
 The app will install menu items and start in the default browser.
 
-[DOWNLOAD for Debian / Ubuntu   ](https://github.com/user-attachments/files/31076055/tweetdelete_1.0.0_all.zip)
+[DOWNLOAD for Debian / Ubuntu   ](https://github.com/ianp5uk/XTweetDelete/blob/main/tweetdelete_1.0.4_all.deb)
