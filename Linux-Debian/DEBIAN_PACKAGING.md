@@ -35,7 +35,7 @@ packaging/linux/
   tweetdelete.service    systemd --user unit (the background server)
   tweetdelete.desktop    Applications-menu launcher entry
   tweetdelete-launcher.sh   installed as /usr/bin/tweetdelete - starts the
-                            service if needed, opens the browser
+                            service if needed, opens the app window
   copyright              Debian policy expects this file to exist
   make_icon_png.py       converts the shared icon.ico to PNG for Linux
   build_deb.sh           assembles everything above into the .deb
@@ -45,6 +45,8 @@ Installed layout on the target machine:
 
 ```
 /usr/lib/tweetdelete/server.py        same server.py used everywhere else
+/usr/lib/tweetdelete/runner.py        background deletion runner (v1.0.4+)
+/usr/lib/tweetdelete/launch_window.py opens the compact app window (v1.0.4+)
 /usr/lib/tweetdelete/public/           the web app (same folder as Windows)
 /usr/lib/systemd/user/tweetdelete.service
 /usr/bin/tweetdelete                   launcher script
@@ -88,15 +90,15 @@ Then, from the project root:
 bash packaging/linux/build_deb.sh
 ```
 
-This produces `packaging/linux/output/tweetdelete_1.0.0_all.deb`.
+This produces `packaging/linux/output/tweetdelete_1.0.4_all.deb`.
 `fakeroot` is what lets the files inside the package be owned by
 `root:root` without this build script itself needing to run as root.
 
 To double-check what actually went into it before installing:
 
 ```bash
-dpkg -I packaging/linux/output/tweetdelete_1.0.0_all.deb   # metadata
-dpkg -c packaging/linux/output/tweetdelete_1.0.0_all.deb   # file listing
+dpkg -I packaging/linux/output/tweetdelete_1.0.4_all.deb   # metadata
+dpkg -c packaging/linux/output/tweetdelete_1.0.4_all.deb   # file listing
 ```
 
 If you have `lintian` installed (`sudo apt install lintian`), it's worth
@@ -115,7 +117,7 @@ rather than adopting the full `debhelper`/`dh_*` toolchain:
 ## Installing it
 
 ```bash
-sudo apt install ./packaging/linux/output/tweetdelete_1.0.0_all.deb
+sudo apt install ./packaging/linux/output/tweetdelete_1.0.4_all.deb
 ```
 
 (Using `apt install ./file.deb` rather than `dpkg -i` is preferred since
@@ -145,7 +147,11 @@ Once running, launch the app from the Activities/Applications menu (search
 tweetdelete
 ```
 
-Both just open your default browser to the running service — there's no
+Both open the app in a compact app window (v1.0.4+, Chrome/Chromium/Brave/
+Edge/Vivaldi; otherwise your default browser) pointed at the running
+service. A deletion run lives in the service, not the window, so closing
+the window doesn't stop it, and a run interrupted by logout or reboot
+resumes at next login. There's no
 tray icon on Linux (stock GNOME removed native tray icon support entirely,
 so this would be inconsistent across desktop environments; a terminal
 command is more reliable here).

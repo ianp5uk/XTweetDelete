@@ -35,7 +35,8 @@ async function withRateLimitRetry(fn, { maxRetries = 6, onWait = null } = {}) {
       const resetAt = parseInt(resetHeader, 10) * 1000;
       waitMs = Math.max(resetAt - Date.now(), 1000) + 2000;
     }
-    if (onWait) onWait(Math.round(waitMs / 1000));
+    // attempt > 1 means X still refused after the previous wait ended.
+    if (onWait) onWait(Math.round(waitMs / 1000), Date.now() + waitMs, attempt);
     await sleep(waitMs);
   }
 }
@@ -80,7 +81,10 @@ export async function fetchAllPosts(userId, { onPage = null, shouldStop = null }
 
     const res = await withRateLimitRetry(
       () => authedFetch(`/2/users/${userId}/tweets?${params.toString()}`),
-      { onWait: (s) => onPage && onPage([], results.length, { rateLimitedSeconds: s }) }
+      {
+        onWait: (s, until, attempt) =>
+          onPage && onPage([], results.length, { rateLimitedSeconds: s, rateLimitedUntil: until, attempt }),
+      }
     );
 
     if (!res.ok) {
@@ -118,7 +122,10 @@ export async function fetchAllLikedPosts(userId, { onPage = null, shouldStop = n
 
     const res = await withRateLimitRetry(
       () => authedFetch(`/2/users/${userId}/liked_tweets?${params.toString()}`),
-      { onWait: (s) => onPage && onPage([], results.length, { rateLimitedSeconds: s }) }
+      {
+        onWait: (s, until, attempt) =>
+          onPage && onPage([], results.length, { rateLimitedSeconds: s, rateLimitedUntil: until, attempt }),
+      }
     );
 
     if (!res.ok) {

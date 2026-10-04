@@ -8,7 +8,7 @@
 # Produces: packaging/linux/output/tweetdelete_<version>_all.deb
 set -euo pipefail
 
-VERSION="1.0.0"
+VERSION="1.0.4"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -31,6 +31,8 @@ mkdir -p "$STAGE/usr/bin"
 
 # ---- App files (the same source used by the Windows build) ----
 cp "$PROJECT_ROOT/server.py" "$STAGE/usr/lib/tweetdelete/server.py"
+cp "$PROJECT_ROOT/runner.py" "$STAGE/usr/lib/tweetdelete/runner.py"
+cp "$PROJECT_ROOT/launch_window.py" "$STAGE/usr/lib/tweetdelete/launch_window.py"
 cp -r "$PROJECT_ROOT/public" "$STAGE/usr/lib/tweetdelete/public"
 
 # ---- Packaging metadata ----
@@ -52,9 +54,20 @@ install -m 0755 "$SCRIPT_DIR/tweetdelete-launcher.sh" "$STAGE/usr/bin/tweetdelet
 {
   echo "tweetdelete ($VERSION) unstable; urgency=low"
   echo
-  echo "  * Initial Linux package."
+  echo "  * Deletions now run in the background helper (runner.py), not the"
+  echo "    browser tab, so rate-limit waits finish on time even when the tab"
+  echo "    is hidden or closed. Runs resume after a restart."
+  echo "  * Live m:ss countdown to the next batch, plus a 'Waiting for X to"
+  echo "    accept resumption' message if X refuses after the wait."
+  echo "  * Opens as a compact app window sized to the app."
   echo
   echo " -- TweetDelete <noreply@example.invalid>  $(date -R)"
+  echo
+  echo "tweetdelete (1.0.0) unstable; urgency=low"
+  echo
+  echo "  * Initial Linux package."
+  echo
+  echo " -- TweetDelete <noreply@example.invalid>  Mon, 11 Aug 2026 12:00:00 +0000"
 } > "$STAGE/usr/share/doc/tweetdelete/changelog"
 gzip -9 -n "$STAGE/usr/share/doc/tweetdelete/changelog"
 
@@ -69,7 +82,7 @@ python3 "$SCRIPT_DIR/make_icon_png.py" \
 # ---- Permissions sanity pass ----
 find "$STAGE/usr/lib/tweetdelete" -type f -exec chmod 0644 {} \;
 find "$STAGE/usr/lib/tweetdelete" -type d -exec chmod 0755 {} \;
-chmod 0755 "$STAGE/usr/lib/tweetdelete/server.py"
+chmod 0755 "$STAGE/usr/lib/tweetdelete/server.py" "$STAGE/usr/lib/tweetdelete/launch_window.py"
 
 # ---- Build ----
 # fakeroot ensures the files inside the .deb are owned by root:root without

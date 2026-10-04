@@ -1,11 +1,14 @@
 // app.js — UI controller for TweetDelete. Vanilla JS, no build step, no
 // framework, so the tool keeps working in older browsers and is trivially
-// portable. All state lives in the browser (localStorage / in-memory);
-// the only network calls are to X's API, proxied through server.py.
+// portable. Settings and login live in the browser (localStorage); the
+// only network calls are to X's API, proxied through the local helper, and
+// to the helper's background runner (runner.js), which performs the actual
+// deletions so rate-limit waits survive hidden, throttled or closed tabs.
 
 import * as oauth from "./oauth.js";
 import * as api from "./api.js";
 import * as archive from "./archive.js";
+import * as runner from "./runner.js";
 
 const PREFS_KEY = "td_prefs";
 
@@ -348,6 +351,54 @@ function setStatus(text) {
   el("progressStatusLine").textContent = text;
 }
 
+// Delay until the displayed countdown next changes (whole seconds left
+// ticks over when (until - now) crosses a multiple of 1000 ms).
+function msToNextSecond(until) {
+  const left = until - Date.now();
+  if (left <= 0) return 1000;
+  return (left % 1000 || 1000) + 20;
+}
+
+// "m:ss", or "h:mm:ss" for waits of an hour or more (e.g. the 24 h likes cap).
+function formatCountdown(ms) {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = String(total % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
+}
+
+// Live countdown on the status line for waits run by the page itself
+// (fetch phase, and the non-native fallback delete loop). Ticks every
+// second while visible; being wall-clock based it is correct again the
+// moment the page is shown after being in the background. When the time
+// is up it switches to a holding message until stopCountdown() is called
+// by the next bit of real progress.
+let countdownTimer = null;
+
+function startCountdown(label, until, xDelayed = false) {
+  stopCountdown();
+  const tick = () => {
+    const left = until - Date.now();
+    if (left > 0) {
+      const head = xDelayed ? "Waiting for X to accept resumption" : label;
+      setStatus(`${head} — resuming in ${formatCountdown(left)} (at ${formatClock(until)})`);
+    } else {
+      setStatus("Waiting for X to accept resumption…");
+    }
+  };
+  const loop = () => {
+    tick();
+    countdownTimer = setTimeout(loop, msToNextSecond(until));
+  };
+  loop();
+}
+
+function stopCountdown() {
+  if (countdownTimer) clearTimeout(countdownTimer);
+  countdownTimer = null;
+}
+
 function appendLog(line) {
   const box = el("logBox");
   box.classList.remove("hidden");
@@ -363,12 +414,15 @@ function setProgressBar(done, total) {
   el("progressCount").textContent = `${done} / ${total}`;
 }
 
+// Measures against the wall clock. The previous version subtracted the
+// nominal tick length on each loop, so when a hidden WebView throttled its
+// timers (1 tick per second or per minute instead of per 500 ms) a
+// 15-minute wait stretched to many hours.
 async function sleepInterruptible(ms, tickMs = 500) {
-  let remaining = ms;
-  while (remaining > 0 && !runState.cancelled) {
-    const step = Math.min(tickMs, remaining);
-    await new Promise((r) => setTimeout(r, step));
-    remaining -= step;
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline && !runState.cancelled) {
+    const step = Math.min(tickMs, deadline - Date.now());
+    await new Promise((r) => setTimeout(r, Math.max(step, 0)));
   }
 }
 
@@ -393,12 +447,39 @@ function dedupeById(items) {
   return Array.from(map.values());
 }
 
+// X's error bodies vary by endpoint/error type - most commonly either the
+// v2-style { errors: [{ message, ... }] } or the RFC 7807-style
+// { title, detail, type }. Pulls out whichever is present; falls back to
+// null (caller then just shows the bare status code) rather than dumping
+// raw JSON into the log.
+function extractErrorReason(detailText) {
+  if (!detailText) return null;
+  try {
+    const parsed = JSON.parse(detailText);
+    if (Array.isArray(parsed.errors) && parsed.errors[0]) {
+      const e = parsed.errors[0];
+      return e.message || e.detail || e.title || null;
+    }
+    if (parsed.detail || parsed.title) {
+      return [parsed.title, parsed.detail].filter(Boolean).join(": ");
+    }
+  } catch {
+    // Not JSON (rare, but possible for some error paths) - show trimmed raw text.
+    return detailText.slice(0, 200);
+  }
+  return null;
+}
+
 const CATEGORY_LABEL = { posts: "posts/replies", reposts: "reposts", likes: "likes" };
 const CATEGORY_SINGULAR = { posts: "post/reply", reposts: "repost", likes: "like" };
 
 async function runDeletion(categories, dateFilter) {
   showScreen("progress");
   window.addEventListener("beforeunload", beforeUnloadHandler);
+  // Android shell only: ask the app to hold a foreground-service notification
+  // and a wake lock for the duration of this run, since Android (unlike a
+  // desktop browser tab) will suspend background JS execution otherwise.
+  if (window.AndroidBridge) window.AndroidBridge.notifyDeletionActive(true);
 
   runState = { cancelled: false, paused: false };
   el("logBox").classList.add("hidden");
@@ -428,8 +509,9 @@ async function runDeletion(categories, dateFilter) {
         shouldStop: () => runState.cancelled,
         onPage: (page, totalSoFar, meta) => {
           if (meta && meta.rateLimitedSeconds) {
-            setStatus(`Rate limited while fetching posts — resuming in ~${meta.rateLimitedSeconds}s…`);
+            startCountdown("Rate limited while fetching posts", meta.rateLimitedUntil, meta.attempt > 1);
           } else {
+            stopCountdown();
             setStatus(`Fetched ${totalSoFar} posts so far…`);
           }
         },
@@ -454,8 +536,9 @@ async function runDeletion(categories, dateFilter) {
         shouldStop: () => runState.cancelled,
         onPage: (page, totalSoFar, meta) => {
           if (meta && meta.rateLimitedSeconds) {
-            setStatus(`Rate limited while fetching likes — resuming in ~${meta.rateLimitedSeconds}s…`);
+            startCountdown("Rate limited while fetching likes", meta.rateLimitedUntil, meta.attempt > 1);
           } else {
+            stopCountdown();
             setStatus(`Fetched ${totalSoFar} likes so far…`);
           }
         },
@@ -545,6 +628,31 @@ async function runDeletion(categories, dateFilter) {
     setProgressBar(0, targets.length);
     setStatus("");
 
+    // ---- Hand the list to the background runner ----
+    // Desktop: runner.py in the local helper (tray app / systemd service).
+    // Android: DeletionEngine.kt in the foreground service. Either way it
+    // keeps going with the tab hidden, the window closed or the screen off,
+    // which in-page JS timers do not. See runner.js.
+    if (await runner.available()) {
+      await oauth.getValidAccessToken(); // make sure we hand over a fresh pair
+      const cfg = oauth.getClientConfig();
+      const payload = {
+        targets: targets.map((t) => ({ id: t.id, category: t.category, created_at: t.created_at || "" })),
+        userId: currentUser.id,
+        username: currentUser.username || "",
+        clientId: cfg.clientId,
+        tokens: oauth.getTokens(),
+      };
+      const err = await runner.start(payload);
+      if (err) throw new Error(err);
+      if (window.AndroidBridge) window.AndroidBridge.notifyDeletionActive(false); // runner holds its own wake lock now
+      // Closing the page no longer aborts anything, so drop the warning.
+      window.removeEventListener("beforeunload", beforeUnloadHandler);
+      runState.native = true;
+      await monitorNativeRun();
+      return;
+    }
+
     // ---- Delete, paced independently per category (each has its own
     // rate-limit bucket on X's side) ----
     const limiters = {
@@ -568,8 +676,9 @@ async function runDeletion(categories, dateFilter) {
       const limiter = limiters[item.category];
       const waitMs = limiter.msUntilFree();
       if (waitMs > 0) {
-        setStatus(`Rate limit reached for ${CATEGORY_LABEL[item.category]} — resuming in ~${Math.ceil(waitMs / 1000)}s…`);
+        startCountdown(`Rate limit reached for ${CATEGORY_LABEL[item.category]}`, Date.now() + waitMs);
         await sleepInterruptible(waitMs);
+        stopCountdown();
         if (runState.cancelled) break;
         await waitWhilePaused();
         if (runState.cancelled) break;
@@ -592,14 +701,20 @@ async function runDeletion(categories, dateFilter) {
         resultLog.push({ id: item.id, category: item.category, created_at: item.created_at, status: "deleted" });
       } else {
         failed++;
+        // result.detail is X's own error body (when it sent one) - a bare
+        // "HTTP 403" tells you nothing about *why*. Pull out a short,
+        // human-readable reason from it when possible, and keep the raw
+        // text too so the CSV export has the full picture.
+        const reason = extractErrorReason(result.detail);
+        const detailText = reason ? `HTTP ${result.status} — ${reason}` : `HTTP ${result.status}`;
         resultLog.push({
           id: item.id,
           category: item.category,
           created_at: item.created_at,
           status: "failed",
-          detail: `HTTP ${result.status}`,
+          detail: detailText,
         });
-        appendLog(`Failed to remove ${CATEGORY_SINGULAR[item.category]} ${item.id} (HTTP ${result.status})`);
+        appendLog(`Failed to remove ${CATEGORY_SINGULAR[item.category]} ${item.id}: ${detailText}`);
       }
 
       setProgressBar(deleted + failed, targets.length);
@@ -614,8 +729,94 @@ async function runDeletion(categories, dateFilter) {
   }
 }
 
-el("pauseResumeBtn").addEventListener("click", () => {
+async function syncTokensFromNative() {
+  try {
+    const t = await runner.takeUpdatedTokens();
+    if (t) oauth.adoptTokens(t);
+  } catch {}
+}
+
+const BACKGROUND_NOTE = window.AndroidBridge
+  ? "This keeps going if you leave the app or turn the screen off."
+  : "This keeps going if you minimise or close this window.";
+
+function formatClock(ms) {
+  return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+// Mirrors the native runner's progress into the page. Only a display loop:
+// if the WebView is throttled or frozen in the background nothing is lost,
+// it just catches up when the app is visible again.
+async function monitorNativeRun() {
+  showScreen("progress");
+  el("progressBarWrap").classList.remove("hidden");
+  el("pauseResumeBtn").classList.remove("hidden");
+  el("startDeleteBtn").classList.add("hidden");
+  let shownResults = 0;
+
+  while (true) {
+    let st;
+    try {
+      st = await runner.status();
+    } catch {
+      // Helper briefly unreachable (e.g. restarting): keep the screen and retry.
+      setStatus("Lost contact with the TweetDelete helper — retrying…");
+      await new Promise((r) => setTimeout(r, 3000));
+      continue;
+    }
+    await syncTokensFromNative();
+
+    if (st.state === "running") {
+      if (!el("progressSummaryLine").textContent) {
+        el("progressSummaryLine").textContent = `${st.total} items being removed in the background.`;
+      }
+      const fresh = await runner.results(shownResults);
+      for (const r of fresh) {
+        if (r.status === "failed") appendLog(`Failed to remove ${CATEGORY_SINGULAR[r.category]} ${r.id}: ${r.detail}`);
+      }
+      shownResults += fresh.length;
+      setProgressBar(st.deleted + st.failed, st.total);
+      el("progressFailCount").textContent = st.failed > 0 ? `${st.failed} failed` : "";
+      el("pauseResumeBtn").textContent = st.paused ? "Continue" : "Pause";
+      let line = st.status || "";
+      if (!st.paused && st.waitUntil > Date.now()) {
+        const verb = st.waitKind === "network" ? "retrying" : "resuming";
+        line = `${line} — ${verb} in ${formatCountdown(st.waitUntil - Date.now())} (at ${formatClock(st.waitUntil)}). ` +
+          BACKGROUND_NOTE;
+      }
+      setStatus(line);
+      const waiting = !st.paused && st.waitUntil > Date.now();
+      await new Promise((r) => setTimeout(r, waiting ? msToNextSecond(st.waitUntil) : 1000));
+      continue;
+    }
+
+    if (st.state === "finished") {
+      const results = await runner.results(0);
+      await syncTokensFromNative();
+      await runner.clear();
+      finishRun({
+        cancelled: !!st.cancelled || !!st.error,
+        results,
+        total: st.total,
+        error: st.error || null,
+      });
+      return;
+    }
+
+    // idle/unavailable: nothing to show.
+    finishRun({ cancelled: true, results: [], error: "The background run could not be found." });
+    return;
+  }
+}
+
+el("pauseResumeBtn").addEventListener("click", async () => {
   if (!runState) return;
+  if (runState.native) {
+    const st = await runner.status();
+    await runner.setPaused(!st.paused);
+    el("pauseResumeBtn").textContent = st.paused ? "Pause" : "Continue";
+    return;
+  }
   runState.paused = !runState.paused;
   el("pauseResumeBtn").textContent = runState.paused ? "Continue" : "Pause";
   setStatus(runState.paused ? "Paused. Click Continue to resume." : "");
@@ -630,13 +831,16 @@ el("progressCancelBtn").addEventListener("click", () => {
   if (window.confirm(message)) {
     runState.cancelled = true;
     runState.paused = false;
+    if (runState.native) runner.cancel();
   }
 });
 
 let lastLog = [];
 
 function finishRun({ cancelled, results = [], total = 0, empty = false, error = null }) {
+  stopCountdown();
   window.removeEventListener("beforeunload", beforeUnloadHandler);
+  if (window.AndroidBridge) window.AndroidBridge.notifyDeletionActive(false);
   lastLog = results;
 
   const deleted = results.filter((r) => r.status === "deleted").length;
@@ -651,7 +855,9 @@ function finishRun({ cancelled, results = [], total = 0, empty = false, error = 
     icon.textContent = "!";
     icon.style.background = "var(--error)";
     title.textContent = "Run failed";
-    message.textContent = error;
+    message.textContent = results.length
+      ? `${error} Removed ${deleted} of ${effectiveTotal} before stopping` + (failed ? ` (${failed} failed).` : ".")
+      : error;
   } else if (empty) {
     icon.textContent = "i";
     icon.style.background = "var(--text-muted)";
@@ -682,11 +888,20 @@ el("downloadLogBtn").addEventListener("click", () => {
   const rows = [["id", "category", "created_at", "status", "detail"]];
   lastLog.forEach((r) => rows.push([r.id, r.category, r.created_at, r.status, r.detail || ""]));
   const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const filename = `tweetdelete-log-${Date.now()}.csv`;
+  // Android WebView can't follow a blob: URL through an <a download> click
+  // (blob: URLs only resolve inside this page's own JS context), so the
+  // Android shell exposes a bridge that writes straight to the device's
+  // Downloads folder instead. Desktop/browser use keeps the normal path.
+  if (window.AndroidBridge && window.AndroidBridge.saveCsvLog) {
+    window.AndroidBridge.saveCsvLog(filename, csv);
+    return;
+  }
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `tweetdelete-log-${Date.now()}.csv`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -698,6 +913,28 @@ el("doneBackBtn").addEventListener("click", () => route());
 // ---------------- Routing ----------------
 
 async function route() {
+  // A run started earlier may still be going (or have finished)
+  // in the background, possibly after the app was closed or the process was
+  // restarted. Adopt its refreshed tokens first, then show it instead of the
+  // main screen - and do not call X from here meanwhile, since a token
+  // refresh from the page would invalidate the runner's rotated token.
+  if (await runner.available()) {
+    await syncTokensFromNative();
+    let st = null;
+    try {
+      st = await runner.status();
+    } catch {}
+    if (st && (st.state === "running" || st.state === "finished")) {
+      if (st.username) updateAccountBadge({ username: st.username });
+      runState = { cancelled: false, paused: false, native: true };
+      el("logBox").classList.add("hidden");
+      el("logBox").innerHTML = "";
+      el("progressSummaryLine").textContent = "";
+      await monitorNativeRun();
+      return;
+    }
+  }
+
   const cfg = oauth.getClientConfig();
   if (!cfg) {
     populateSettingsForm();
@@ -737,4 +974,40 @@ function updateAccountBadge(user) {
   }
 }
 
+// Desktop v1.0.4: when opened as a standalone app window (launch_window.py
+// starts Edge/Chrome/etc. with --app), size the window to the app instead
+// of the browser's default, then centre it. Done here in CSS pixels so it
+// is right whatever the display scaling; --window-size only sets a rough
+// starting size. Only runs in an app window, so a normal tab is untouched.
+function fitAppWindow() {
+  if (window.AndroidBridge) return;
+  // --app windows report display-mode "standalone"; ordinary tabs "browser".
+  if (!(window.matchMedia && window.matchMedia("(display-mode: standalone)").matches)) return;
+  // Once per window, so a size the user picks by hand is not undone on reload.
+  try {
+    if (sessionStorage.getItem("td_window_fitted")) return;
+    sessionStorage.setItem("td_window_fitted", "1");
+  } catch {}
+  try {
+    const avW = screen.availWidth || 1024;
+    const avH = screen.availHeight || 768;
+    const chromeW = Math.max(0, window.outerWidth - window.innerWidth);
+    const chromeH = Math.max(0, window.outerHeight - window.innerHeight);
+    // 720 px content + 2 x 16 px body padding + room for a scrollbar.
+    const innerW = 772;
+    const innerH = Math.min(900, Math.round(avH * 0.9) - chromeH);
+    const w = Math.min(avW, innerW + chromeW);
+    const h = Math.min(avH, innerH + chromeH);
+    if (Math.abs(window.outerWidth - w) > 4 || Math.abs(window.outerHeight - h) > 4) {
+      window.resizeTo(w, h);
+      const left = (screen.availLeft || 0) + Math.max(0, Math.round((avW - w) / 2));
+      const top = (screen.availTop || 0) + Math.max(0, Math.round((avH - h) / 2));
+      window.moveTo(left, top);
+    }
+  } catch {
+    // Purely cosmetic; never block the app over it.
+  }
+}
+
+fitAppWindow();
 route();

@@ -7,18 +7,17 @@ so a browser calling api.x.com directly from JavaScript is blocked by CORS
 (this has been an open X API limitation since 2016 - see
 https://devcommunity.x.com/t/twitter-api-v2-public-client-no-access-control-allow-origin-header-present-cors/170402).
 
-This script does exactly two things and nothing else:
+This script does three things:
   1. Serves the static files in ./public (the actual app: HTML/CSS/JS).
   2. Proxies any request under /api/x/<path> to https://api.x.com/<path>,
      forwarding method, headers, and body verbatim, and returns the response
      to the browser as same-origin (no CORS problem, because the browser is
      now only ever talking to 127.0.0.1).
-
-No business logic lives here. Every decision (what to delete, filters,
-pacing, confirmation, progress, OAuth token handling) happens in the
-browser JavaScript in ./public. This script only exists to work around the
-X API's lack of CORS support and to host the OAuth callback page over
-http://127.0.0.1 (required, because X does not allow file:// redirect URIs).
+  3. (v1.0.4+) Hosts the background deletion runner (runner.py) under
+     /__runner/..., so the delete loop and its rate-limit waits keep going
+     when the browser tab is hidden, throttled or closed. The page still
+     does login, fetching, filtering, the archive step and confirmation,
+     then hands over the final list - same split as the Android app.
 
 Usage as a standalone script:
     python3 server.py [port]
@@ -29,13 +28,21 @@ Usage as a module (used by the Windows tray app build - see packaging/):
     httpd.serve_forever()   # call httpd.shutdown() from another thread to stop
 """
 import http.server
+import json
 import os
 import sys
 import urllib.request
 import urllib.error
 
+from runner import DeletionRunner
+
 DEFAULT_PORT = int(os.environ.get("PORT", "8765"))
-UPSTREAM = "https://api.x.com"
+# TWEETDELETE_API_BASE exists only for testing against a mock X API.
+UPSTREAM = os.environ.get("TWEETDELETE_API_BASE", "https://api.x.com").rstrip("/")
+RUNNER_PREFIX = "/__runner/"
+
+# One runner per helper process, created by build_server().
+RUNNER = None
 
 # Headers that must not be forwarded as-is between hop-by-hop boundaries.
 HOP_BY_HOP = {
@@ -68,11 +75,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self._send_cors_headers()
+        # Never advertise CORS for the runner: it holds the OAuth tokens
+        # during a run, so only the app's own page may talk to it.
+        if not self.path.startswith(RUNNER_PREFIX):
+            self._send_cors_headers()
         self.end_headers()
 
     def do_GET(self):
-        if self.path.startswith("/api/x/"):
+        if self.path.startswith(RUNNER_PREFIX):
+            self._runner("GET")
+        elif self.path.startswith("/api/x/"):
             self._proxy("GET")
         elif self.path == "/__tweetdelete_health":
             payload = b'{"app":"tweetdelete"}'
@@ -87,7 +99,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             super().do_GET()
 
     def do_POST(self):
-        if self.path.startswith("/api/x/"):
+        if self.path.startswith(RUNNER_PREFIX):
+            self._runner("POST")
+        elif self.path.startswith("/api/x/"):
             self._proxy("POST")
         else:
             self.send_error(404)
@@ -103,6 +117,69 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._proxy("PUT")
         else:
             self.send_error(404)
+
+    # ---- Background runner endpoints ----
+
+    def _runner_request_allowed(self):
+        """Same-origin only. The Host check defeats DNS-rebinding (a remote
+        site resolving its own name to 127.0.0.1); the custom header can't be
+        sent cross-origin without a CORS preflight, which these paths never
+        approve. Together they stop any other web page reading the tokens or
+        starting/cancelling a run."""
+        host = (self.headers.get("Host") or "").split(":")[0].lower()
+        if host not in ("127.0.0.1", "localhost"):
+            return False
+        return self.headers.get("X-TweetDelete") == "1"
+
+    def _json(self, status, obj):
+        payload = json.dumps(obj).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def _runner(self, method):
+        if not self._runner_request_allowed():
+            self._json(403, {"error": "forbidden"})
+            return
+        from urllib.parse import urlsplit, parse_qs
+        parts = urlsplit(self.path)
+        action = parts.path[len(RUNNER_PREFIX):]
+        query = parse_qs(parts.query)
+        body = {}
+        if method == "POST":
+            length = int(self.headers.get("Content-Length", 0) or 0)
+            raw = self.rfile.read(length) if length else b""
+            try:
+                body = json.loads(raw.decode("utf-8")) if raw else {}
+            except ValueError:
+                self._json(400, {"error": "invalid JSON"})
+                return
+        r = RUNNER
+        if method == "GET" and action == "status":
+            self._json(200, r.status())
+        elif method == "GET" and action == "results":
+            start = int((query.get("from") or ["0"])[0] or 0)
+            self._json(200, r.results_from(start))
+        elif method == "POST" and action == "tokens":
+            # POST, not GET, so it can never be a cacheable/simple cross-site read.
+            self._json(200, {"tokens": r.take_updated_tokens()})
+        elif method == "POST" and action == "start":
+            err = r.start(body)
+            self._json(200 if not err else 409, {"error": err})
+        elif method == "POST" and action == "pause":
+            r.set_paused(bool(body.get("paused")))
+            self._json(200, {"ok": True})
+        elif method == "POST" and action == "cancel":
+            r.cancel()
+            self._json(200, {"ok": True})
+        elif method == "POST" and action == "clear":
+            r.clear()
+            self._json(200, {"ok": True})
+        else:
+            self._json(404, {"error": "unknown runner action"})
 
     def _send_cors_headers(self):
         # Not strictly required since the browser only ever calls same-origin
@@ -213,13 +290,25 @@ def find_running_instance(preferred=DEFAULT_PORT, attempts=20):
     return None
 
 
-def build_server(port=None):
+def get_runner(log=None):
+    """The process-wide runner; created and restored (resuming any run that
+    was interrupted by a restart) on first use."""
+    global RUNNER
+    if RUNNER is None:
+        state_dir = os.environ.get("TWEETDELETE_STATE_DIR") or None
+        RUNNER = DeletionRunner(state_dir=state_dir, api_base=UPSTREAM, log=log)
+        RUNNER.restore()
+    return RUNNER
+
+
+def build_server(port=None, log=None):
     """Creates (but does not start) the HTTP server. Call .serve_forever()
     to run it, and .shutdown() from another thread to stop it cleanly.
     """
     os.makedirs(PUBLIC_DIR, exist_ok=True)
     chosen_port = port if port is not None else find_free_port(DEFAULT_PORT)
     server = http.server.ThreadingHTTPServer(("127.0.0.1", chosen_port), Handler)
+    get_runner(log)
     return server
 
 

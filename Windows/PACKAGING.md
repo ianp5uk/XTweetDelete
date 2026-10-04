@@ -2,7 +2,9 @@
 
 This turns TweetDelete into a normal Windows app: a Start Menu entry and
 optional desktop icon that launch a system tray app, which starts the local
-server in the background and opens your default browser to it automatically.
+server in the background and opens the app in a compact app window
+(v1.0.4+; see README "App window") — or your default browser if no
+Chromium-family browser is installed.
 No Python installation is required on the end user's machine — PyInstaller
 bundles a private copy of Python plus every dependency into the build, so it
 never touches, checks, or depends on anything already installed.
@@ -15,10 +17,13 @@ runs entirely on your machine.
 ## What gets built, and how it fits together
 
 ```
-tray_app.py          entry point — shows the tray icon, starts server.py in
-                      a background thread, opens the browser, opens the
+tray_app.py          entry point — shows the tray icon (tooltip shows run
+                      progress), starts server.py in a background thread,
+                      opens the app window, opens the
                       help PDF from the tray's Help menu item
 server.py            same local server used in the plain/dev version
+runner.py            background deletion runner (v1.0.4+), hosted by server.py
+launch_window.py     opens the compact app window (v1.0.4+)
 build.spec            PyInstaller build recipe (bundles public/ + icon.ico)
 public/
   TweetDelete for Windows.pdf   help guide — you add this file (see below);

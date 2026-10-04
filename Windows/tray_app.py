@@ -6,24 +6,30 @@ Responsibilities (and nothing else):
   1. Start the local helper server from server.py in a background thread
      (or detect one is already running and reuse it, if this is a second
      launch while the first is still active).
-  2. Open the default browser to the app.
+  2. Open the app in a compact app window (launch_window.py), falling back
+     to the default browser.
   3. Show a system tray icon with "Open TweetDelete" and "Quit" so there's
      a normal, discoverable way to stop the background process - matching
      how other small Windows utilities behave, rather than leaving a
      process running with no visible control.
 
-All actual application logic (OAuth, deletion, filtering, etc.) lives in
-the browser JavaScript under public/ - this file and server.py only exist
-to get a local web server running and reachable from the OS.
+  4. (v1.0.4+) Show the background run's progress and the time of the next
+     batch in the tray icon's tooltip. The deletion runner itself
+     (runner.py) lives in this process, so a run keeps going with the
+     browser window closed; Quit pauses it until TweetDelete next starts.
+
+Login, fetching and filtering live in the browser JavaScript under public/.
 """
 import os
 import sys
 import threading
+import time
 import webbrowser
 import logging
 from logging.handlers import RotatingFileHandler
 
 import server as tweetdelete_server
+import launch_window
 
 
 def setup_logging():
@@ -103,6 +109,27 @@ def open_help_pdf():
         log.exception("Failed to open help PDF")
 
 
+def tooltip_text(st):
+    """Tray tooltip (Windows limits it to 127 characters)."""
+    if not st or st.get("state") != "running":
+        return "TweetDelete"
+    done = st.get("deleted", 0) + st.get("failed", 0)
+    text = "TweetDelete: %d/%d done" % (done, st.get("total", 0))
+    if st.get("paused"):
+        text += ", paused"
+    elif st.get("waitUntil", 0) > time.time() * 1000:
+        text += ", next batch at " + time.strftime("%H:%M", time.localtime(st["waitUntil"] / 1000))
+    return text[:127]
+
+
+def open_app(url):
+    try:
+        launch_window.open_app(url, log=log.info)
+    except Exception:
+        log.exception("App window launch failed; using default browser")
+        webbrowser.open(url)
+
+
 def main():
     import pystray
     from pystray import MenuItem as Item
@@ -113,11 +140,11 @@ def main():
     if existing_port:
         log.info("Found an already-running instance on port %s, reusing it", existing_port)
         url = f"http://127.0.0.1:{existing_port}/"
-        webbrowser.open(url)
+        open_app(url)
         # Nothing more to do - the other instance owns the tray icon.
         return
 
-    httpd = tweetdelete_server.build_server()
+    httpd = tweetdelete_server.build_server(log=log.info)
     port = httpd.server_address[1]
     url = f"http://127.0.0.1:{port}/"
     log.info("Serving at %s", url)
@@ -125,10 +152,10 @@ def main():
     server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     server_thread.start()
 
-    webbrowser.open(url)
+    open_app(url)
 
     def on_open(icon, item):
-        webbrowser.open(url)
+        open_app(url)
 
     def on_help(icon, item):
         open_help_pdf()
@@ -149,6 +176,20 @@ def main():
             Item("Quit", on_quit),
         ),
     )
+
+    def update_tooltip():
+        last = None
+        while True:
+            try:
+                text = tooltip_text(tweetdelete_server.get_runner().status())
+                if text != last:
+                    tray_icon.title = text
+                    last = text
+            except Exception:
+                log.exception("Tooltip update failed")
+            time.sleep(5)
+
+    threading.Thread(target=update_tooltip, daemon=True).start()
 
     try:
         tray_icon.run()

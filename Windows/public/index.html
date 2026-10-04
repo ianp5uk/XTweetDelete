@@ -170,9 +170,11 @@
     <p id="progressStatusLine" class="status-line"></p>
 
     <div class="banner warning">
-      Keep this browser tab open while deletion is running. Closing it will abort the
-      process — anything already deleted stays deleted, and anything not yet reached
-      will remain on your account.
+      Once deletion starts it runs in the TweetDelete helper, not in this window, so you
+      can minimise or close the window and reopen TweetDelete later to check progress.
+      Quitting TweetDelete from the tray (Windows) or shutting down / logging out pauses
+      the run; it resumes automatically the next time TweetDelete starts. Anything
+      already deleted stays deleted.
     </div>
 
     <div class="button-row">

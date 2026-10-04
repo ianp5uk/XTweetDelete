@@ -6,19 +6,6 @@ plain JavaScript in your browser. A small local Python script is required
 only because X's API does not support CORS and does not allow `file://`
 OAuth redirects — see **Why the local script?** below.
 
-## Quick(ish) Start
-- [Download the installer from Releases.](https://github.com/ianp5uk/XTweetDelete/releases/download/Windows_RC1/TweetDelete-Setup.exe)
-- Get an [X Developer account](https://developer.x.com/), setup an app environment for TweetDelete within the developer console.
-(This is to get a client id and add credits for api access to X.)
-- Get the client id
-- Install TweetDelete on Windows.
-- Start TweetDelete and input the client id just obtained.
-- You'll be asked to authorise by logging in to X.
-- Put a few credits on the X developer dashboard.
-- Use TweetDelete.
-
-If it's possible, at some point I will add automation for this process.
-
 ## What it does
 
 - Connects to your own X account via OAuth 2.0 (Authorization Code + PKCE) —
@@ -39,13 +26,87 @@ If it's possible, at some point I will add automation for this process.
   the API found.
 - Shows a live count and progress bar, with **Pause / Continue / Cancel**
   controls, before anything is deleted.
-- Warns you if you try to close the tab mid-run.
+- (v1.0.4) Runs the deletions in the local helper, not the browser tab, so
+  you can minimise or close the window mid-run — see **Background runs**
+  below. Shows a live `m:ss` countdown (`h:mm:ss` for waits over an hour)
+  to the next batch, with the clock time it resumes.
+- (v1.0.4) Opens as a compact app window sized to the app — see
+  **App window** below.
 - Remembers your last-selected categories, delete option, and custom dates
   as the default the next time you open the tool.
 - Paces each category independently against X's real limits: 50 deletions
   per 15 minutes for posts, 50/15min for undoing reposts, and 50/15min plus
-  1,000/24hr for unliking — and backs off automatically on rate-limit
-  responses.
+  1,000/24hr for unliking — and also honours X's own rate-limit headers, so
+  if X allows fewer than that it waits for X's reset time instead of
+  recording failures.
+
+## Background runs (v1.0.4)
+
+Up to v1.0.0 the delete loop was JavaScript in the browser tab. Browsers
+throttle or freeze timers in hidden tabs (Chrome/Edge cut them to once a
+minute after 5 minutes hidden; Edge "sleeping tabs" and Chrome "Memory
+Saver" freeze the tab completely), and the 15-minute wait counted timer
+ticks rather than checking the clock. So whether a run got past the first
+50 depended on the browser and its settings — the Windows and Linux builds
+shipped identical code.
+
+From v1.0.4, the same design as Android v1.0.3+:
+
+- The page still handles login, fetching, filtering, the archive step and
+  confirmation, then hands the final list to `runner.py` inside the local
+  helper (the tray app on Windows, the systemd user service on Linux) and
+  only displays its progress.
+- All waits are wall-clock based. A 429 retries the same item after X's
+  reset time. If X still refuses once a countdown ends, the status reads
+  "Waiting for X to accept resumption", with a new countdown if X gives a
+  later reset.
+- Network drop-outs retry with back-off (15 s up to 5 min) instead of
+  aborting. Access tokens are refreshed by the runner, and the rotated
+  refresh token is handed back to the page.
+- 10 consecutive failures with the same HTTP status (e.g. exhausted API
+  credits) auto-pause the run.
+- Run state is saved after every item to `%LOCALAPPDATA%\TweetDelete\run_state.json`
+  (Windows) or `~/.local/state/tweetdelete/run_state.json` (Linux, mode
+  0600 — it holds your tokens while a run is active, and is deleted when
+  the finished run is shown). If the helper stops (tray Quit, logout,
+  reboot), the run resumes from where it left off when the helper next
+  starts — on Linux automatically at login, on Windows when you next launch
+  TweetDelete.
+- On Windows the tray icon tooltip shows progress and the time of the
+  next batch.
+- The runner endpoints (`/__runner/...`) accept requests only from the app
+  itself: no CORS, a Host-header check against DNS rebinding, and a
+  required custom header.
+
+## App window (v1.0.4)
+
+TweetDelete now opens in a standalone app window (no tabs or address bar)
+sized to the app, rather than a tab in a full-size browser window. This
+uses your Chromium-family browser's `--app` mode (Edge, Chrome, Chromium,
+Brave or Vivaldi) with your normal browser profile, so saved settings and
+X login in that browser are kept; the page then fits the window to the
+app in CSS pixels so it is right under any display scaling, and centres
+it. The fit happens once per window, so if you resize it by hand it stays
+that way.
+
+Browser choice: your default browser if it is Chromium-family, otherwise
+any installed one (Edge first on Windows), otherwise a plain tab in your
+default browser as before (Firefox has no app-window mode). To force a
+browser, or the old behaviour, create `launcher.json` in
+`%LOCALAPPDATA%\TweetDelete\` (Windows) or `~/.config/tweetdelete/`
+(Linux):
+
+```json
+{ "browser": "default" }
+```
+
+or `{ "browser": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" }`.
+Optional `"width"` / `"height"` set the starting size. On Linux the
+`TWEETDELETE_BROWSER` environment variable works too.
+
+If you switch browser (e.g. from Firefox to Edge), that browser's storage
+is separate, so you'll be asked for your Client ID and to connect to X once
+more.
 
 ## Known limitation (X's API, not this tool)
 
@@ -98,7 +159,7 @@ endpoint, so a browser calling `api.x.com` directly is blocked by CORS —
 this has been an open, unresolved limitation since at least 2016
 (https://devcommunity.x.com/t/twitter-api-v2-public-client-no-access-control-allow-origin-header-present-cors/170402).
 Every tool that bulk-deletes tweets, including this one, works around it
-with a server component. `server.py` does nothing except:
+with a server component. `server.py` does three things:
 
 1. Serve the static files in `public/` (the actual app).
 2. Forward `/api/x/...` requests to `https://api.x.com/...` and relay the
@@ -107,8 +168,11 @@ with a server component. `server.py` does nothing except:
 3. Host `callback.html` at `http://127.0.0.1:<port>/callback.html`, which X
    requires for the OAuth redirect (it does not allow `file://` URLs).
 
-No business logic, filtering, or credentials live in this script. It never
-sees your OAuth client secret, because public/SPA clients don't have one.
+4. (v1.0.4) Host the background deletion runner (`runner.py`), which
+   holds your access/refresh tokens only for the duration of a run.
+
+Filtering and selection stay in the browser. Public/SPA clients have no
+client secret, so none is ever used or stored.
 
 ## Windows installer (no Python required for end users)
 
@@ -118,10 +182,17 @@ Menu entry, desktop icon, tray icon, browser opens automatically — see
 Inno Setup installer that bundles its own Python interpreter, so it never
 depends on (or conflicts with) any Python already on the machine.
 
-This is the Windows-focused source tree. There are separate Linux and
-Android source trees that share the same core `server.py` / `public/`
-code with their own OS-specific packaging. The sections below describe
-running this tree the plain way, directly from this source folder.
+## Ubuntu / Debian package
+
+For a normal `apt`-installed app on Ubuntu — Applications-menu entry,
+background service that starts automatically at login — see
+[DEBIAN_PACKAGING.md](./DEBIAN_PACKAGING.md). Unlike Windows, this does
+**not** bundle Python — it depends on Ubuntu's own `python3` via `apt`,
+since the server has no third-party dependencies and Ubuntu already
+guarantees a compatible interpreter is present.
+
+The sections below describe running it the plain way instead, directly
+from this source folder, on any platform.
 
 ## Setup
 
@@ -185,13 +256,17 @@ port) and register the matching callback URI in your X app instead.
 ## Files
 
 ```
-server.py           local helper: static file server + CORS-avoiding proxy
+server.py           local helper: static file server + CORS-avoiding proxy + runner endpoints
+runner.py           background deletion runner (port of Android's DeletionEngine.kt)
+launch_window.py    opens the compact app window (Chromium-family --app), else default browser
+tests/              runner tests against a mock X API: python3 -m unittest discover -s tests
 public/
   index.html        app shell / all screens
   style.css         styling, responsive layout
   app.js            UI logic, delete orchestration, pacing, persistence
   oauth.js          PKCE login, token storage/refresh
   api.js            X API v2 calls (account info, list/delete posts, undo reposts, unlike)
+  runner.js         page-side interface to the background runner (desktop helper or Android)
   archive.js        Optional X data archive (tweet.js / like.js) parser, used only on a detected gap
   callback.html     OAuth redirect landing page
 ```

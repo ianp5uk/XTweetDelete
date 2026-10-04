@@ -21,8 +21,11 @@ systemctl --global enable tweetdelete.service 2>/dev/null || true
 if [ -n "$SUDO_USER" ]; then
     USER_ID=$(id -u "$SUDO_USER" 2>/dev/null || true)
     if [ -n "$USER_ID" ]; then
+        # restart, not start: on an upgrade the old helper would otherwise
+        # keep running the previous version until the next login. A run in
+        # progress (v1.0.4+) is saved after every item and resumes on restart.
         sudo -u "$SUDO_USER" XDG_RUNTIME_DIR="/run/user/$USER_ID" \
-            systemctl --user start tweetdelete.service 2>/dev/null || true
+            systemctl --user restart tweetdelete.service 2>/dev/null || true
     fi
 fi
 
