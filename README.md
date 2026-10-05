@@ -3,7 +3,7 @@
 *I call the app TweetDelete but there is another web based service called https://tweetdelete.net/ that has registered the name on X. Hence you may see XTweetDelete used for this desktop app in places to avoid namespace conflicts, e.g., X’s developer console and authorisation process. It hasn't been extensively tested other than I use it and it has worked without issue*
 
 <p align="center">
-  <img src="./TweetDelete.png" alt="Screenshot of the application" width="700">
+  <img src="TweetDelete.png" alt="Screenshot of the application" width="700">
 </p>
 
 ## What does TweetDelete do?
@@ -80,7 +80,7 @@ please email: think-1551@pm.me
 
 Get the apk onto your device, locate the apk with the native file manager and click it to install
 
-[DOWNLOAD for Android       ](https://github.com/ianp5uk/XTweetDelete/blob/main/app-release_v1.04.apk)
+[DOWNLOAD for Android       ](https://github.com/ianp5uk/XTweetDelete/releases/download/TweetDelete_Android_V1.04/app-release_v1.04.apk)
 
 ### Windows 11, 64 bit x86
 
@@ -91,7 +91,7 @@ You 'may' get anti-virus warnings, usually not.
 
 It should be setup as any other Windows user app. There is a small server/proxy running and will show up on the system tray. This is needed due to X.com API and CORS protections. The app runs in the browser talking via the server/proxy.
 
-[DOWNLOAD for Windows   ](https://github.com/ianp5uk/XTweetDelete/blob/main/TweetDelete-Setup_v1.04.exe)
+[DOWNLOAD for Windows   ](https://github.com/ianp5uk/XTweetDelete/releases/download/TweetDelete_Windows/TweetDelete-Setup_v1.0.4.1.exe)
 
 ### Debian / Ubuntu
 
@@ -104,4 +104,4 @@ It installs a small systemd server component, which should be started and will s
 
 The app will install menu items and start in the default browser.
 
-[DOWNLOAD for Debian / Ubuntu   ](https://github.com/ianp5uk/XTweetDelete/blob/main/tweetdelete_1.0.4.1_all.deb)
+[DOWNLOAD for Linux (Debian)   ](https://github.com/ianp5uk/XTweetDelete/releases/download/TweetDelete_Linux/tweetdelete_1.0.4.1_all.deb)
