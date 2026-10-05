@@ -8,7 +8,7 @@
 # Produces: packaging/linux/output/tweetdelete_<version>_all.deb
 set -euo pipefail
 
-VERSION="1.0.4"
+VERSION="1.0.4.1"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
