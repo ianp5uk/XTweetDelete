@@ -104,4 +104,4 @@ It installs a small systemd server component, which should be started and will s
 
 The app will install menu items and start in the default browser.
 
-[DOWNLOAD for Debian / Ubuntu   ](https://github.com/ianp5uk/XTweetDelete/blob/main/tweetdelete_1.0.4_all.deb)
+[DOWNLOAD for Debian / Ubuntu   ](https://github.com/ianp5uk/XTweetDelete/blob/main/tweetdelete_1.0.4.1_all.deb)
