@@ -3,7 +3,7 @@
 *I call the app TweetDelete but there is another web based service called https://tweetdelete.net/ that has registered the name on X. Hence you may see XTweetDelete used for this desktop app in places to avoid namespace conflicts, e.g., X’s developer console and authorisation process. It hasn't been extensively tested other than I use it and it has worked without issue*
 
 <p align="center">
-  <img src="TweetDelete.png" alt="Screenshot of the application" width="700">
+  <img src="TweetDelete.png" alt="Screenshot of the application" width="500">
 </p>
 
 ## What does TweetDelete do?
