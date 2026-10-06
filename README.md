@@ -45,19 +45,20 @@ Currently I have built TweetDelete for 3 platforms; Windows 64 bit, Debian deriv
 
 ## Security
 
-Security of client id has not been considered to any depth, it is assumed this will be used on a personal device which has the level of security the user is comfortable with. If your device is compromised you may be exposed. "If" you are a high profile personality or their staff, you may want to use this on a hardened device. To be extreme a hostile state who has fully hacked your device could assume your X identity. You'd also have other problems in that case!
+Security of client id has not been considered to any depth, it is assumed this will be used on a personal device which has the level of security the user is comfortable with. If your device is compromised you may be exposed. "If" you are a high profile personality or their staff, you may want to use this on a hardened device. To be extreme a hostile state who has hacked your device could assume your X identity. You'd also have other problems in that case!
 
 - **No client secret.** The app uses OAuth 2.0 with PKCE as a "public client", so no secret is ever used or saved (`oauth.js`).
 
 - **Client ID and redirect URI.** Saved under the key `td_client_config`. These aren't secret.
 
-- **Access and refresh tokens.** Saved under the key `td_tokens`. These are what matter: with `offline.access` in the scopes, anyone holding the refresh token can keep deleting, posting and liking on your account until you revoke it.
+- **Access and refresh tokens.** Saved under the key `td_tokens`. These are what matter: with `offline.access` in the scopes, anyone holding the refresh token can keep deleting, posting and liking on your account until you revoke it. 
+***These are NOT encrypted and stored in local storage. This is slated for improvement.*** If your device is compromised these tokens can be used to control your X account.
 
 - **PKCE verifier and state.** Kept only for the duration of the login (`sessionStorage`) and removed once the token exchange finishes.
 
 ## Credits
 
-Thanks to Perplexity AI which did the coding. I don’t know which models it used; it was set to auto select but was mostly Claude Opus 5.5. I was impressed, it was producing the executables in approx. 5 minutes per iteration. The longest time was spent on sorting out the packaging and installation process which took a day or two of iteration, mainly because the agent couldn't test Windows and relied on my slowness.
+Thanks to Perplexity AI which did the coding. It was set to auto select but was mostly Claude Opus 5.5. I was impressed, it was producing the executables in approx. 5=15 minutes per iteration. It took maybe 2 days initially creating the prompt. The longest time was spent on sorting out the packaging and installation process which took a day or two of iteration, mainly because the agent couldn't test Windows and relied on my slowness. It does take elapsed weeks iterating small fixes, changes and improvements. But ... way quicker than coding myself.
 
 ## Licencing
 
