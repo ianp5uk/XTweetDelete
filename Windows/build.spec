@@ -23,9 +23,27 @@
 # Both are regenerated on every build and ignored by git.
 import re as _re
 
-# Explicit rather than relying on Tree being injected into the spec
-# namespace: keeps this spec valid under any PyInstaller 5/6 setup.
-from PyInstaller.building.datastruct import Tree
+import os as _os
+
+# public/ minus the other platforms' help guides - the shared source tree
+# carries all of them, and this build ships only its own (the same filter
+# build_deb.sh applies to the Debian package).
+#
+# Built as plain (source_file, dest_dir) pairs, which is the only shape
+# Analysis(datas=...) accepts. Do NOT use Tree() here: Tree yields 3-value
+# TOC entries (dest, src, 'DATA') and Analysis fails with
+# "ValueError: too many values to unpack (expected 2)".
+_PUBLIC_EXCLUDES = {
+    'TweetDelete for Debian.pdf',
+    'TweetDelete for Linux.pdf',
+    'TweetDelete for Ubuntu.pdf',
+}
+_public_datas = []
+for _root, _dirs, _files in _os.walk('public'):
+    for _name in _files:
+        if _name in _PUBLIC_EXCLUDES:
+            continue
+        _public_datas.append((_os.path.join(_root, _name), _root))
 
 with open("server.py", "r", encoding="utf-8") as _f:
     _VERSION = _re.search(r'^VERSION = "([^"]+)"', _f.read(), _re.M).group(1)
@@ -66,15 +84,7 @@ a = Analysis(
     ['tray_app.py'],
     pathex=[],
     binaries=[],
-    datas=[
-        # public/ minus the other platforms' help guides - the shared
-        # source tree carries all of them, and this build ships only its
-        # own (the same filter build_deb.sh applies to the Debian package).
-        Tree('public', prefix='public', excludes=[
-            'TweetDelete for Debian.pdf',
-            'TweetDelete for Linux.pdf',
-            'TweetDelete for Ubuntu.pdf',
-        ]),
+    datas=_public_datas + [
         ('packaging/icon.ico', '.'),
     ],
     hiddenimports=[
