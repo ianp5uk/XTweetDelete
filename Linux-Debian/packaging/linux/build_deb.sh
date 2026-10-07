@@ -71,6 +71,14 @@ install -m 0755 "$SCRIPT_DIR/tweetdelete-launcher.sh" "$STAGE/usr/bin/tweetdelet
 {
   echo "tweetdelete ($VERSION) unstable; urgency=low"
   echo
+  echo "  * Require browser revalidation of HTML, JavaScript and CSS to"
+  echo "    prevent stale UI files after upgrades. Unchanged assets retain"
+  echo "    Last-Modified/304 support; helper JSON remains no-store."
+  echo
+  echo " -- TweetDelete <noreply@example.invalid>  $(date -R)"
+  echo
+  echo "tweetdelete (1.0.4.2) unstable; urgency=low"
+  echo
   echo "  * Help guide PDF shipped in the package again; server.py picks"
   echo "    this platform's own guide from the ones bundled in public/."
   echo "  * The app now shows its version in the footer. The version comes"

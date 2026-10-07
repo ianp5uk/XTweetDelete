@@ -108,6 +108,20 @@ If you switch browser (e.g. from Firefox to Edge), that browser's storage
 is separate, so you'll be asked for your Client ID and to connect to X once
 more.
 
+## Browser cache revalidation (v1.0.4.3)
+
+The desktop helper sends `Cache-Control: no-cache` for HTML, JavaScript
+and CSS, including the root page and conditional `304 Not Modified`
+responses. Browsers may store these files, but must validate them with the
+helper before reuse. Existing `Last-Modified` checks let unchanged files
+return 304 without downloading them again; modified files are sent afresh.
+The health and runner JSON responses retain their `no-store` policy.
+
+Install the new build and restart the helper to activate this policy.
+Previously cached responses do not acquire new headers retroactively:
+one final hard refresh may be needed when upgrading from an older build.
+This change does not replace an old helper process that is still running.
+
 ## Version reporting (v1.0.4.2)
 
 The app now shows its version in the web UI footer ("TweetDelete
