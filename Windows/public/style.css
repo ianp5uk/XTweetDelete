@@ -362,3 +362,14 @@ footer.app-footer {
 }
 
 footer.app-footer a { color: var(--text-muted); }
+
+footer.app-footer .app-version {
+  margin-bottom: 4px;
+}
+
+/* Stays hidden (no gap in the footer) until the version has loaded -
+platforms whose server doesn't answer /__tweetdelete_health (Android)
+simply never show the line. */
+footer.app-footer .app-version:empty {
+  display: none;
+}

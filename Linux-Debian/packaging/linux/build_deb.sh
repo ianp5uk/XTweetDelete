@@ -8,12 +8,19 @@
 # Produces: packaging/linux/output/tweetdelete_<version>_all.deb
 set -euo pipefail
 
-VERSION="1.0.4.1"
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STAGE="$SCRIPT_DIR/stage"
 OUT_DIR="$SCRIPT_DIR/output"
+
+# The version lives in server.py (VERSION = "...") - the single source of
+# truth that the footer, the .exe file properties and this package's
+# metadata all read - so they can never drift apart.
+VERSION="$(sed -n 's/^VERSION = "\(.*\)"$/\1/p' "$PROJECT_ROOT/server.py")"
+if [ -z "$VERSION" ]; then
+    echo "Could not read VERSION from $PROJECT_ROOT/server.py - it must contain a line like:  VERSION = \"1.0.4.2\"" >&2
+    exit 1
+fi
 PKG_NAME="tweetdelete_${VERSION}_all"
 
 echo "Project root: $PROJECT_ROOT"
@@ -35,6 +42,16 @@ cp "$PROJECT_ROOT/runner.py" "$STAGE/usr/lib/tweetdelete/runner.py"
 cp "$PROJECT_ROOT/launch_window.py" "$STAGE/usr/lib/tweetdelete/launch_window.py"
 cp -r "$PROJECT_ROOT/public" "$STAGE/usr/lib/tweetdelete/public"
 
+# The shared public/ tree carries every platform's help guide (server.py
+# picks the right one per platform at runtime), but the Debian package
+# should not ship Windows documentation: keep only this platform's guides.
+find "$STAGE/usr/lib/tweetdelete/public" -maxdepth 1 -type f \
+     -name "TweetDelete for *.pdf" \
+     ! -name "TweetDelete for Debian.pdf" \
+     ! -name "TweetDelete for Linux.pdf" \
+     ! -name "TweetDelete for Ubuntu.pdf" \
+     -delete
+
 # ---- Packaging metadata ----
 sed "s/__VERSION__/$VERSION/" "$SCRIPT_DIR/control" > "$STAGE/DEBIAN/control"
 install -m 0755 "$SCRIPT_DIR/postinst" "$STAGE/DEBIAN/postinst"
@@ -54,6 +71,23 @@ install -m 0755 "$SCRIPT_DIR/tweetdelete-launcher.sh" "$STAGE/usr/bin/tweetdelet
 {
   echo "tweetdelete ($VERSION) unstable; urgency=low"
   echo
+  echo "  * Help guide PDF shipped in the package again; server.py picks"
+  echo "    this platform's own guide from the ones bundled in public/."
+  echo "  * The app now shows its version in the footer. The version comes"
+  echo "    from server.py's VERSION constant - the single source the Debian"
+  echo "    package, the Windows .exe file properties and the installer all"
+  echo "    read - so a stale install is visible at a glance."
+  echo
+  echo " -- TweetDelete <noreply@example.invalid>  $(date -R)"
+  echo
+  echo "tweetdelete (1.0.4.1) unstable; urgency=low"
+  echo
+  echo "  * Re-added the help guide PDF."
+  echo
+  echo " -- TweetDelete <noreply@example.invalid>  Mon, 05 Oct 2026 12:00:00 +0000"
+  echo
+  echo "tweetdelete (1.0.4) unstable; urgency=low"
+  echo
   echo "  * Deletions now run in the background helper (runner.py), not the"
   echo "    browser tab, so rate-limit waits finish on time even when the tab"
   echo "    is hidden or closed. Runs resume after a restart."
@@ -61,7 +95,7 @@ install -m 0755 "$SCRIPT_DIR/tweetdelete-launcher.sh" "$STAGE/usr/bin/tweetdelet
   echo "    accept resumption' message if X refuses after the wait."
   echo "  * Opens as a compact app window sized to the app."
   echo
-  echo " -- TweetDelete <noreply@example.invalid>  $(date -R)"
+  echo " -- TweetDelete <noreply@example.invalid>  Mon, 22 Sep 2026 12:00:00 +0000"
   echo
   echo "tweetdelete (1.0.0) unstable; urgency=low"
   echo

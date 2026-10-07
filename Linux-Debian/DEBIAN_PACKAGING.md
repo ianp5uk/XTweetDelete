@@ -57,10 +57,10 @@ Installed layout on the target machine:
 
 ## Adding the help guide
 
-Same pattern as Windows, different filename. Drop your finished PDF into
-`public/` and name it exactly one of these (case-sensitive — the check is
-a literal filename match, so any other name, capitalization, or extension
-will silently 404 instead of showing the PDF):
+The source `public/` folder is shared with the Windows build and carries
+every platform's guide; this platform's is one of these (case-sensitive —
+the check is a literal filename match, so any other name, capitalization,
+or extension will silently 404 instead of showing the PDF):
 
 ```
 public/TweetDelete for Linux.pdf
@@ -68,13 +68,18 @@ public/TweetDelete for Debian.pdf
 public/TweetDelete for Ubuntu.pdf
 ```
 
-The web app's footer link (`/api/help`) automatically finds whichever
-platform's PDF is present in the build, so no code changes are needed —
-just add the file before running `build_deb.sh`. As with Windows, this
-must go in the **source** `public/` folder, not anywhere under a build
-output directory, since those get regenerated on every build.
+The web app's footer link (`/api/help`) automatically finds this
+platform's PDF, and `build_deb.sh` strips the other platforms' guides out
+of the staged package, so no code changes are needed — just add the file
+before running `build_deb.sh`. As with Windows, this must go in the
+**source** `public/` folder, not anywhere under a build output directory,
+since those get regenerated on every build.
 
 ## Building the package
+
+The version stamped into the package (its `control` metadata, filename
+and changelog) is read from `VERSION` in `server.py` — the single source
+of truth — so bump that before building a release.
 
 No separate dependency-install step is needed here — `dpkg-deb`,
 `fakeroot`, and Python's standard library are all this build script uses,

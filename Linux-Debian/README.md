@@ -108,6 +108,23 @@ If you switch browser (e.g. from Firefox to Edge), that browser's storage
 is separate, so you'll be asked for your Client ID and to connect to X once
 more.
 
+## Version reporting (v1.0.4.2)
+
+The app now shows its version in the web UI footer ("TweetDelete
+v1.0.4.2"), served by the local helper's `/__tweetdelete_health` endpoint —
+so you can always see which build is actually running, and a stale install
+(an update that never landed) is visible at a glance instead of needing
+`dpkg` or the Windows Apps list to check.
+
+The version lives in one place only: `VERSION` at the top of `server.py`.
+The Windows .exe's version resource (file Properties, and the version
+shown in Apps & Features), the Inno Setup installer's version number and
+output filename, and the Debian package's metadata and filename all read
+from it at build time. Before, each of those carried its own hardcoded
+string, which is how a build could end up labelled one version while
+containing another's code. The Android app is unchanged: its local server
+has no health endpoint, so the footer line simply stays empty there.
+
 ## Known limitation (X's API, not this tool)
 
 `GET /2/users/:id/tweets` and `GET /2/users/:id/liked_tweets` have

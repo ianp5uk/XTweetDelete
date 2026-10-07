@@ -14,7 +14,13 @@
 ; first.
 
 #define MyAppName "TweetDelete"
-#define MyAppVersion "1.0.4.1"
+; MyAppVersion comes from packaging/build_version.iss, which build.spec
+; generates from server.py's VERSION when the exe is built - the single
+; source of truth, so the installer can never ship a version number the
+; app itself doesn't report in its footer. This means `pyinstaller
+; build.spec` must run before this installer is compiled (which the
+; packaging order requires anyway, since [Files] packages its output).
+#include "build_version.iss"
 #define MyAppPublisher "TweetDelete"
 #define MyAppExeName "TweetDelete.exe"
 
@@ -29,7 +35,10 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=installer_output
-OutputBaseFilename=TweetDelete-Setup
+; Matches the release-file naming used on GitHub (TweetDelete-Setup_v1.0.4.1.exe
+; and so on), now derived automatically from the exe's version instead of
+; being renamed by hand after each compile.
+OutputBaseFilename=TweetDelete-Setup_v{#MyAppVersion}
 SetupIconFile=icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2

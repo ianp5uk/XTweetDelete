@@ -1009,5 +1009,22 @@ function fitAppWindow() {
   }
 }
 
+// Desktop v1.0.4.2: show the helper's version in the footer, so it's always
+// visible which build is actually serving the page - the version comes from
+// server.py's VERSION constant, the single source the .exe file properties,
+// the Debian package metadata and the Windows installer all read. The
+// Android app's local server has no health endpoint, so the line simply
+// stays empty there.
+(async () => {
+  try {
+    const res = await fetch("/__tweetdelete_health", { cache: "no-store" });
+    if (!res.ok) return;
+    const info = await res.json();
+    if (info && info.version) el("appVersion").textContent = `TweetDelete v${info.version}`;
+  } catch {
+    // Optional nicety; never block startup on it.
+  }
+})();
+
 fitAppWindow();
 route();

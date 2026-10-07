@@ -53,7 +53,8 @@ bundled data file, remember to include `_internal\` in that path too.
 
 ## Adding the help guide
 
-Drop your finished PDF into `public/` and name it exactly:
+The source `public/` folder is shared with the Debian build and carries
+every platform's guide; this build's is named exactly:
 
 ```
 public/TweetDelete for Windows.pdf
@@ -75,10 +76,13 @@ truth, so placing it there means it flows through automatically:
   user unchecks it.
 
 No changes to `build.spec` or the PyInstaller step are needed — just add
-the file and rebuild normally. If the file is missing when you build, the
-installer and tray Help menu won't error, but clicking them won't open
-anything either (the tray app logs a warning to `tweetdelete.log` in that
-case) — so double check it's there before you ship a build to anyone.
+the file and rebuild normally. `build.spec` excludes the other platforms'
+guides from the bundle (the same filter `build_deb.sh` applies to the
+Debian package), so only this build's guide ships. If the file is missing
+when you build, the installer and tray Help menu won't error, but
+clicking them won't open anything either (the tray app logs a warning to
+`tweetdelete.log` in that case) — so double check it's there before you
+ship a build to anyone.
 
 ## One-time setup on your Windows machine
 
@@ -90,6 +94,15 @@ case) — so double check it's there before you ship a build to anyone.
    project folder (the one containing `server.py`, `tray_app.py`, `build.spec`).
 
 ## Every time you build a new version
+
+First, bump the version: edit `VERSION` at the top of `server.py`. That
+one constant is the single source of truth — the app's footer display,
+the .exe's version resource (what Windows shows in the file's Properties
+dialog and in Apps & Features), the Debian package metadata and the
+installer's version number are all derived from it, so they can never
+drift apart again.
+
+Then set up the build environment if you haven't already:
 
 ```powershell
 python -m venv venv
@@ -129,18 +142,23 @@ Once that works, build the installer:
 ```
 
 (Or open `packaging\installer.iss` in the Inno Setup Compiler app and click
-**Compile** — same result.) This produces:
+**Compile** — same result.) The installer reads its version number from
+`packaging\build_version.iss`, which `build.spec` regenerates from
+`server.py` on every exe build — another reason the PyInstaller step must
+run first. This produces:
 
 ```
-packaging\installer_output\TweetDelete-Setup.exe
+packaging\installer_output\TweetDelete-Setup_v1.0.4.2.exe
 ```
 
-That's the file you'd hand to someone to install the app.
+(the version suffix comes from the same source, matching the release-file
+naming used on GitHub, so no manual renaming after each build). That's the
+file you'd hand to someone to install the app.
 
 ## Installing it
 
-Double-click `TweetDelete-Setup.exe`. Because it's set to
-`PrivilegesRequired=lowest`, it installs to
+Double-click the `TweetDelete-Setup_v…exe` you just built. Because it's set
+to `PrivilegesRequired=lowest`, it installs to
 `%LOCALAPPDATA%\Programs\TweetDelete` for your user account only, with **no
 UAC/admin prompt**. It adds a Start Menu entry and (if you tick the box
 during install) a desktop icon, plus a normal entry under **Settings → Apps**
